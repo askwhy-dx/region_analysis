@@ -1,0 +1,21 @@
+#지역분석
+구매연령 포지션 추가
+
+동일 시군구 대비 - 지표별 많다 적다 기준이 필요
+
+
+
+한국부동산원 R-ONE API 인증키
+d1c64f5f4b584f3b995095f16d3c4686
+
+행정동 인구수
+https://www.data.go.kr/data/15097972/fileData.do
+
+학원정보 open.neis.go.kr API
+0652e5c9fb5d4f3b975d342933f7bdac
+
+유치원, 어린이집 정보 API
+dc8e1b8236fe4aeea32e0a49c1581660
+
+국토교통부_공동주택 기본 정보제공 서비스, 국토교통부_공동주택 단지 목록제공 서비스
+R%2F80SwM%2BL6Bf97Vze95UQPUx0v%2FRyEW1UdCRu%2F%2B2IRjvmxQYpNkAgTr8FwkFN0gx2C0lR%2BPToNccZRODlcqQLg%3D%3D

@@ -1,0 +1,67 @@
+# >>> file_backup_sop (자동 생성, 직접 수정 금지)
+*
+!*/
+!*.bat
+!*.cfg
+!*.cjs
+!*.cmd
+!*.css
+!*.gs
+!*.ini
+!*.js
+!*.json
+!*.md
+!*.mjs
+!*.ps1
+!*.py
+!*.sh
+!*.sql
+!*.toml
+!*.ts
+!*.txt
+!*.vbs
+!*.xml
+!*.yaml
+!*.yml
+!.gitignore
+!.gitattributes
+.git/
+.playwright-mcp/
+.venv/
+__pycache__/
+archive/
+backup/
+cache/
+chrome-profile/
+data/
+dist/
+log/
+logs/
+node_modules/
+old_versions/
+out/
+output/
+profile/
+reports/
+temp/
+tmp/
+venv/
+.env*
+*token*.json
+*credential*.json
+client_secret*
+*.local.js
+settings.local.json
+# 비밀값·개인정보·5MB 초과로 걸린 파일
+/web/config.json
+# <<< file_backup_sop
+
+# 인증키·비밀
+.env
+web/config.json          # VWorld 키가 들어간다 (make_web_config.py 산출물)
+
+# 캐시·중간 산출물
+__pycache__/
+*.pyc
+data/raw/
+data/archive/
