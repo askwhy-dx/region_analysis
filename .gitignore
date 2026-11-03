@@ -67,3 +67,6 @@ __pycache__/
 *.pyc
 data/raw/
 data/archive/
+
+# 지역분석 대시보드 화면 원본 — 26-11-03 사용자 지시(이미 GitHub Pages 공개분)
+!web/index.html

@@ -1,0 +1,2662 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="build-version" content="2026-08-07-brand-filters-map-reset-v6">
+<title>지역분석 대시보드 — 가맹 상담용</title>
+<link rel="stylesheet" href="vendor/leaflet.css">
+<style>
+/* ===================================================================
+   지역분석 대시보드 — 가맹상담 대면 자료
+   색: dataviz 스킬 reference palette (sequential blue / status)
+   =================================================================== */
+:root{
+  color-scheme: light;
+  --surface-1:#fcfcfb; --plane:#f4f4f1; --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --line:#c3c2b7; --border:rgba(11,11,11,.10);
+  --s100:#cde2fb; --s200:#9ec5f4; --s350:#5598e7; --s500:#256abf; --s700:#0d366b;
+  --good:#0ca30c; --warn:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  --brand:#0d366b;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--plane); color:var(--ink);
+  font-family:system-ui,-apple-system,"Segoe UI","맑은 고딕",sans-serif;
+  font-size:14px; line-height:1.35;
+}
+h1,h2,h3{margin:0; font-weight:800; letter-spacing:-.02em}
+button{font:inherit; cursor:pointer}
+
+/* ---------- 헤더 ---------- */
+header{
+  background:var(--brand); color:#fff; padding:8px 16px;
+  display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+}
+header h1{font-size:19px}
+header .sub{font-size:12px; opacity:.8}
+.badge-src{
+  margin-left:auto; font-size:11px; font-weight:700; padding:5px 10px;
+  border-radius:999px; background:rgba(255,255,255,.15); border:1px solid rgba(255,255,255,.3);
+}
+.badge-src.mock{background:var(--warn); color:#2a2000; border-color:transparent}
+button.badge-src{color:#fff; font-family:inherit; cursor:pointer}
+button.badge-src:hover{background:rgba(255,255,255,.28)}
+button.badge-src.mock{color:#2a2000}
+/* 「데이터 갱신 주기」 팝업 (2026-11-03) */
+.update-panel{position:fixed; top:58px; right:16px; z-index:9000; width:min(560px, calc(100vw - 32px));
+  max-height:calc(100vh - 80px); overflow:auto; background:#fff; color:var(--ink); border:1px solid var(--line);
+  border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,.22); padding:14px 16px 12px; font-size:12px}
+.update-panel h2{font-size:14px; margin:0 0 8px; color:var(--brand)}
+.update-panel h3{font-size:12px; margin:12px 0 6px; color:var(--ink-2)}
+.update-panel table{border-collapse:collapse; width:100%}
+.update-panel th,.update-panel td{border:1px solid var(--grid); padding:6px 8px; text-align:left; vertical-align:top}
+.update-panel th{background:var(--plane); font-weight:700; text-align:center}
+.update-panel td.c{text-align:center; white-space:nowrap}
+.update-panel .last{margin-top:10px; font-weight:700}
+.update-panel .x{position:absolute; top:8px; right:10px; border:0; background:none; font-size:18px; cursor:pointer; color:var(--muted)}
+.filterbar{
+  position:relative;z-index:600;min-height:42px;padding:5px 16px;
+  display:flex;align-items:center;gap:12px;background:#fff;border-bottom:1px solid var(--grid)
+}
+.age-filter{position:relative;flex:0 0 auto;display:flex;align-items:center;gap:5px}
+.age-filter-label{font-size:11px;color:var(--muted);font-weight:700}
+.age-filter-trigger{
+  border:1px solid var(--s350);background:var(--s100);color:var(--brand);border-radius:999px;
+  padding:4px 11px;font-size:12px;font-weight:800;white-space:nowrap
+}
+.age-filter-panel{
+  position:absolute;top:calc(100% + 6px);left:0;width:430px;padding:9px;
+  background:var(--surface-1);border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 22px rgba(0,0,0,.16)
+}
+.filter-panel-heading{display:flex;align-items:center;gap:7px;color:var(--brand);font-size:12px}
+.age-filter-panel .filter-panel-heading{padding:0 0 7px}
+.filter-close{
+  margin-left:auto;width:24px;height:24px;padding:0;border:1px solid var(--line);border-radius:6px;
+  background:#fff;color:var(--ink-2);font-size:12px;font-weight:800;line-height:22px
+}
+.filter-close:hover{background:var(--plane);border-color:var(--s350)}
+.filter-clear{
+  margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:6px;
+  padding:3px 7px;color:var(--brand);font-size:10px;font-weight:700
+}
+.filter-clear + .filter-close{margin-left:0}
+.age-presets{display:flex;gap:5px;padding-bottom:8px;border-bottom:1px solid var(--grid)}
+.age-presets button{border:1px solid var(--line);background:#fff;border-radius:7px;padding:5px 9px;color:var(--ink-2);font-size:11px;font-weight:700}
+.age-presets button[aria-pressed="true"]{background:var(--brand);border-color:var(--brand);color:#fff}
+.age-axis-note{padding:7px 0 0;color:var(--ink-2);font-size:11px;line-height:1.5}
+.age-axis-note b{color:var(--ink)}
+.age-checks{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:8px}
+.age-checks label{display:flex;align-items:center;gap:4px;padding:5px 6px;border:1px solid var(--grid);border-radius:6px;font-size:11px;font-weight:700;background:#fff}
+.age-checks input{width:13px;height:13px;margin:0;accent-color:var(--brand)}
+.age-status{font-size:10px;color:var(--muted);white-space:nowrap}
+.poi-brand-filter{position:relative;flex:0 0 auto;display:flex;align-items:center;gap:5px}
+.poi-brand-filter-label{font-size:11px;color:var(--muted);font-weight:700}
+.poi-brand-filter-trigger{
+  border:1px solid var(--s350);background:#fff;color:var(--brand);border-radius:999px;
+  padding:4px 10px;font-size:11px;font-weight:800;white-space:nowrap
+}
+.poi-brand-filter-trigger[aria-expanded="true"]{background:var(--s100)}
+.poi-brand-filter-panel{
+  position:absolute;top:calc(100% + 6px);left:0;width:270px;padding:9px;
+  background:var(--surface-1);border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 22px rgba(0,0,0,.16)
+}
+.poi-brand-filter[data-category="english_kinder"] .poi-brand-filter-panel{left:auto;right:0}
+.poi-brand-filter-panel .filter-panel-heading{padding:0 0 7px}
+.poi-brand-actions{display:flex;gap:4px;margin-left:auto}
+.poi-brand-actions button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 6px;color:var(--brand);font-size:9px;font-weight:700}
+.poi-brand-checks{display:grid;gap:5px}
+.poi-brand-checks label{display:flex;align-items:center;gap:6px;padding:6px 7px;border:1px solid var(--grid);border-radius:7px;background:#fff;font-size:11px;font-weight:700}
+.poi-brand-checks input{width:14px;height:14px;margin:0;accent-color:var(--brand)}
+
+/* ---------- 지역 필터 ---------- */
+.region-filterbar{
+  position:relative;min-width:0;flex:1;min-height:32px;
+  display:flex;align-items:center;gap:6px;background:#fff
+}
+.region-filter-label{font-size:11px;color:var(--muted);font-weight:700}
+.region-filter-steps{display:flex;align-items:center;gap:5px;min-width:0;overflow-x:auto;scrollbar-width:none}
+.region-filter-steps::-webkit-scrollbar{display:none}
+.region-step{
+  flex:0 0 auto;display:flex;align-items:center;gap:5px;padding:4px 11px;
+  border:1px solid var(--line);border-radius:999px;background:#fff;color:var(--brand);
+  font-size:12px;font-weight:700;white-space:nowrap
+}
+.region-step.has-value{background:var(--s100);border-color:var(--s300)}
+.region-step[aria-current="true"]{background:var(--s200);border-color:var(--s350)}
+.region-step:disabled{color:var(--muted);background:var(--plane);opacity:.55;cursor:not-allowed}
+.region-step .drop{font-size:9px;color:var(--muted)}
+.region-sep{flex:0 0 auto;color:var(--muted);font-size:11px;font-weight:700}
+.region-filter-count{font-size:10px;color:var(--muted);white-space:nowrap}
+.region-filter-hint{min-width:0;font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.region-boundary{filter:drop-shadow(0 0 1.2px rgba(0,0,0,.95));stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.rank-filter-panel{
+  position:absolute;top:calc(100% + 5px);left:0;width:min(720px,calc(100vw - 32px));
+  background:var(--surface-1);border:1px solid var(--border);border-radius:0 0 10px 10px;
+  box-shadow:0 8px 22px rgba(0,0,0,.16);overflow:hidden
+}
+.rank-filter-heading{display:flex;align-items:center;gap:7px;padding:7px 9px 2px;font-size:12px;color:var(--brand)}
+.rank-filter-panel .rank{max-height:430px;overflow-y:auto;scrollbar-width:thin}
+.rank-filter-panel .rank-actions{padding:6px 8px 4px;border-bottom:1px solid var(--grid)}
+@media (max-width:700px){
+  .filterbar{gap:7px;padding-left:8px;padding-right:8px}
+  .age-filter-panel{width:min(430px,calc(100vw - 16px))}
+  .age-checks{grid-template-columns:repeat(4,1fr)}
+  .region-filter-hint{display:none}
+  .rank-filter-panel .rank{grid-template-columns:1fr;max-height:60vh}
+}
+
+/* ---------- 브레드크럼 ---------- */
+nav.bc{
+  background:var(--surface-1); border-bottom:1px solid var(--grid);
+  padding:6px 16px; display:none; align-items:center; gap:6px; flex-wrap:wrap;
+  font-size:13px; position:sticky; top:0; z-index:500;
+}
+nav.bc button{
+  border:1px solid var(--line); background:#fff; border-radius:999px;
+  padding:4px 12px; font-weight:700; color:var(--brand);
+}
+nav.bc button:hover{background:var(--s100)}
+nav.bc .cur{padding:6px 4px; font-weight:800}
+nav.bc .sep{color:var(--muted)}
+
+/* ---------- 레이아웃 ---------- */
+main{padding:10px 16px 0; max-width:1920px; margin:0 auto}
+.stage{display:grid;grid-template-columns:minmax(0,3fr) minmax(390px,2fr);gap:10px;align-items:stretch}
+.stage>.card{min-width:0}
+@media (max-width:1180px){.stage{grid-template-columns:1fr}.region-summary{grid-column:1}}
+.card{
+  background:var(--surface-1); border:1px solid var(--border); border-radius:var(--r);
+  box-shadow:0 1px 2px rgba(11,11,11,.04);
+}
+.card>h2{padding:9px 12px 0; font-size:16px}
+.card>.hint{padding:2px 12px 0; color:var(--ink-2); font-size:11px}
+#map{height:calc(100vh - 250px); min-height:500px; border-radius:var(--r); overflow:hidden}
+#map.detail{height:60vh; min-height:420px}
+.map-shell{position:relative}
+.map-reset-button{position:absolute;top:6px;left:6px;z-index:490;border:1px solid var(--line);border-radius:7px;background:rgba(255,255,255,.94);color:var(--brand);padding:5px 9px;font-size:10px;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.map-reset-button:hover{background:var(--s100);border-color:var(--s350)}
+.map-multi-button{left:78px}
+.map-multi-button[aria-pressed="true"]{background:var(--brand);color:#fff;border-color:var(--brand)}
+.map-drill-button{top:auto;bottom:14px;left:50%;transform:translateX(-50%);padding:8px 14px;font-size:12px;background:var(--brand);color:#fff;border-color:var(--brand)}
+.map-drill-button:hover{background:var(--brand);opacity:.9}
+.main-basemaps{position:absolute;top:6px;right:6px;z-index:490;padding:2px 3px;background:rgba(255,255,255,.9);border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.stage.adm-inline>.card{height:calc(100vh - 163px);min-height:500px}
+.inline-poi{height:100%;min-height:0;display:flex;flex-direction:column}
+.poi-map-shell{position:relative;flex:1;min-height:0}
+#map2{height:100%;min-height:0;border-radius:0 0 var(--r) var(--r);overflow:hidden}
+.poi-basemaps{position:absolute;top:6px;right:6px;z-index:490;padding:2px 3px;background:rgba(255,255,255,.9);border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.18)}
+.region-detail{min-width:0;overflow:hidden}
+@media (max-width:1180px){
+  .stage.adm-inline>.card{height:auto;min-height:0}
+  .inline-poi{height:70vh;min-height:500px}
+  .region-detail{overflow:visible}
+}
+
+/* ---------- 범례 ---------- */
+.legend{display:flex; gap:0; align-items:stretch; padding:7px 10px 9px; flex-wrap:wrap}
+.legend .item{display:flex; flex-direction:column; align-items:center; gap:2px; min-width:58px}
+.legend .sw{width:100%; height:16px; border-radius:4px}
+.legend .lb{font-size:13px; font-weight:700}
+.legend .rg{font-size:10px; color:var(--muted)}
+.legend .lgtitle{width:100%; display:flex; align-items:center; gap:7px; margin-bottom:5px; flex-wrap:wrap}
+.legend .lgtitle select{font:inherit; font-weight:700; padding:6px 10px; border-radius:8px;
+  border:1px solid var(--line); background:#fff; color:var(--brand);font-size:12px}
+.legend .lgnote{font-size:10px; color:var(--muted); font-weight:400}
+
+/* ---------- 랭킹 ---------- */
+.rank{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 10px;padding:8px 10px 10px;overflow:visible}
+.rank .row{
+  display:grid; grid-template-columns:16px 22px minmax(0,1fr) auto auto; align-items:center; gap:6px;
+  padding:5px 8px; border-radius:6px; cursor:pointer; border:1px solid transparent;
+  font-size:12px;line-height:1.2;min-height:30px;
+}
+.rank .row.selected{background:#e8f2fe; border-color:var(--s350)}
+.rank .pick{width:15px;height:15px;accent-color:var(--brand);cursor:pointer;margin:0}
+.rank .row:hover{background:var(--s100); border-color:var(--s200)}
+.rank .no{color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums; text-align:right}
+.rank .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rank .sc{font-weight:800; font-variant-numeric:tabular-nums}
+.rank .un{font-size:9px; color:var(--muted); min-width:12px}
+.rank-actions{display:flex;gap:4px;padding:5px 12px 1px;flex-wrap:wrap}
+.rank-actions button{border:1px solid var(--line);background:#fff;border-radius:6px;padding:3px 7px;font-size:10px;font-weight:700;color:var(--brand)}
+/* .g.S~.g.D (등급 배지) 는 점수제도 폐기(2026-07-31)로 삭제 */
+
+/* ---------- 동 상세 ---------- */
+/* 지도 왼쪽 / 데이터 오른쪽 (2026-08-04 배치 변경 — 상위 단계 화면과 좌우를 맞춘다) */
+.detail{display:grid; grid-template-columns:minmax(0,1fr) 480px; gap:10px; align-items:start}
+@media (max-width:1180px){.detail{grid-template-columns:1fr}}
+.region-summary{margin-top:0;min-width:0;overflow:hidden}
+.region-summary .selection-note{padding:6px 10px 0;color:var(--brand);font-size:10px;font-weight:700;display:flex;align-items:center;gap:6px;min-width:0}
+.region-summary .selection-note .selection-text{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.region-summary .selection-note button{margin-left:auto;flex:0 0 auto;border:1px solid var(--line);background:#fff;border-radius:5px;padding:2px 6px;color:var(--brand);font-size:9px;font-weight:700}
+.region-summary .selection-note.selection-note-large{min-height:44px;padding:10px 12px;border-bottom:1px solid var(--grid);font-size:17px;line-height:1.2;font-weight:850}
+.region-summary .dashboard-blocks{display:grid;grid-template-rows:repeat(3,minmax(0,1fr));gap:7px;padding:8px 9px 9px}
+.region-summary .dashboard-blk{display:grid;grid-template-columns:42px minmax(0,1fr);padding:0;border:1px solid var(--grid);border-radius:9px;overflow:hidden;background:#fff}
+.region-summary .dashboard-blk:last-child{border-bottom:1px solid var(--grid)}
+.region-summary .section-rail{display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;font-size:11px;font-weight:850;line-height:1.2;letter-spacing:.02em}
+.region-summary .section-body{min-width:0;padding:7px 8px}
+.region-summary .dashboard-blk h3{margin-bottom:5px;font-size:11px}
+.region-summary .dashboard-blk.market .section-rail{background:#1687c9}
+.region-summary .dashboard-blk.education .section-rail{background:#16a37d}
+.region-summary .dashboard-blk.housing .section-rail{background:#9c174f}
+.region-summary .dashboard-blk.market .kpi .v{border-top:2px solid rgba(22,135,201,.28)}
+.region-summary .dashboard-blk.education .kpi .v{border-top:2px solid rgba(22,163,125,.28)}
+.region-summary .dashboard-blk.housing .kpi .v{border-top:2px solid rgba(156,23,79,.24)}
+.region-summary .kpis.competition-row{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.region-summary .student-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin-top:5px}
+.region-summary .student-kpi{min-width:0;display:grid;grid-template-rows:minmax(14px,auto) 28px;gap:2px;text-align:center}
+.region-summary .student-label{align-self:end;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:8px;color:var(--ink-2);font-weight:700}
+.region-summary .student-value{display:flex;align-items:center;justify-content:center;min-width:0;padding:2px 4px;font-size:14px;font-weight:850;font-variant-numeric:tabular-nums;background:var(--plane);border-radius:5px}
+.region-summary .student-value .u{font-size:8px;color:var(--ink-2);margin-left:2px}
+.region-summary .hero{padding:9px 10px 8px}
+.region-summary .hero .nm{font-size:20px}
+.region-summary .hero .loc{font-size:10px}
+.region-summary .hero .facts{grid-template-columns:repeat(4,1fr);gap:4px;margin-top:7px}
+.region-summary .hero .facts>div{padding:6px}
+.region-summary .hero .facts b{font-size:17px}
+.region-summary .hero .facts span{font-size:9px}
+.region-summary .blocks{padding:2px 10px 7px}
+.region-summary .blk{padding:6px 0}
+.region-summary .blk h3{font-size:11px;margin-bottom:4px}
+.region-summary .blk h3 .tag{font-size:9px;padding:1px 5px}
+.region-summary .kpis{grid-template-columns:repeat(3,minmax(0,1fr));gap:4px 7px}
+.region-summary .dashboard-blk.market .kpis{grid-template-columns:repeat(4,minmax(0,1fr))}
+.region-summary .kpi{min-width:0;display:grid;grid-template-rows:minmax(14px,auto) 34px;gap:2px;padding:0;background:transparent;text-align:center}
+.region-summary .kpi .v{order:2;display:flex;align-items:center;justify-content:center;min-width:0;padding:4px 6px;background:var(--plane);border-radius:6px;font-size:17px}
+.region-summary .kpi .v .u{font-size:9px}
+.region-summary .kpi .l{order:1;align-self:end;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:9px;line-height:1.15;text-align:center}
+.region-detail .hero{padding:7px 8px 6px}
+.region-detail .hero .nm{font-size:17px}
+.region-detail .hero .loc{font-size:9px}
+.region-detail .hero .facts{gap:3px;margin-top:5px}
+.region-detail .hero .facts>div{padding:4px 5px}
+.region-detail .hero .facts b{font-size:14px}
+.region-detail .hero .facts span{font-size:8px}
+.region-detail .blocks{padding:1px 8px 5px}
+.region-detail .blk{padding:4px 0}
+.region-detail .blk h3{font-size:10px;margin-bottom:3px}
+.region-detail .blk h3 .tag{font-size:8px;padding:1px 4px}
+.region-detail .kpis{gap:3px 5px}
+.region-detail .kpi{padding:4px 5px}
+.region-detail .kpi .v{font-size:14px;line-height:1.05}
+.region-detail .kpi .v .u{font-size:8px}
+.region-detail .kpi .l{font-size:8px;line-height:1.1;margin-top:2px}
+.hero{padding:13px 15px 11px; border-bottom:1px solid var(--grid)}
+.hero .nm{font-size:24px; font-weight:800; letter-spacing:-.03em}
+.hero .loc{color:var(--ink-2); font-size:12px; margin-top:2px}
+/* 점수 박스·판정 문구(.scorebox/.score/.gbig/.verdict) 는 2026-07-31 폐기 → .facts 로 대체 */
+.hero .facts{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-top:10px}
+.hero .facts>div{background:var(--plane); border-radius:8px; padding:7px 8px}
+.hero .facts b{display:block; font-size:21px; font-weight:800; letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums; line-height:1.15}
+.hero .facts span{font-size:10px; color:var(--ink-2)}
+@media (max-width:520px){.hero .facts{grid-template-columns:repeat(2,1fr)}}
+
+.blocks{padding:4px 12px 12px}
+.blk{padding:10px 0; border-bottom:1px solid var(--grid)}
+.blk:last-child{border-bottom:0}
+.blk h3{font-size:13px; color:var(--ink-2); letter-spacing:.02em; margin-bottom:6px}
+.blk h3 .tag{font-size:10px; background:var(--plane); color:var(--muted);
+  padding:2px 8px; border-radius:6px; margin-left:6px; font-weight:700}
+.kpis{display:grid; grid-template-columns:repeat(2,1fr); gap:7px}
+.kpi .v{font-size:23px; font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums}
+.kpi .v .u{font-size:11px; font-weight:700; color:var(--ink-2); margin-left:2px}
+.kpi .l{font-size:11px; color:var(--ink-2)}
+/* 표본 부족 — 숫자 자리에 들어가므로 숫자처럼 커 보이면 안 된다. 값이 아니라 '값 없음'이다. */
+.lowsample{font-size:15px; font-weight:700; color:var(--ink-2); letter-spacing:-.01em}
+.kpi .v .lowsample{font-size:17px}
+.kpi .d{font-size:14px; font-weight:700}
+.d.up{color:#006300}.d.dn{color:var(--critical)}
+
+/* 지표 설명 말풍선 — 카드 위에 올리면 "이 숫자가 무엇인지"를 띄운다.
+   ⚠️ CSS ::after 로 만들지 않았다. 카드가 좁은 그리드라 부모 밖으로 나가면 잘리고,
+   맨 아래·맨 오른쪽 카드에서 특히 안 보인다. body 에 붙은 하나짜리 상자를
+   JS 로 옮겨 쓰면 어디에 있는 카드든 화면 안에 들어온다. */
+.kpi[data-tip]{cursor:help}
+#kpiTip{position:fixed; z-index:9999; max-width:290px; padding:9px 11px;
+  background:#111827; color:#f9fafb; border-radius:8px; font-size:12px; line-height:1.5;
+  box-shadow:0 6px 20px rgba(0,0,0,.28); pointer-events:none; opacity:0; transition:opacity .12s}
+#kpiTip.on{opacity:1}
+#kpiTip b{color:#fff}
+#kpiTip .warn{color:#fca5a5; font-weight:700}
+/* 내역 목록 — 학년별 학생수 · 브랜드별 지점수 */
+#kpiTip .g{display:flex; justify-content:space-between; gap:14px; padding:1px 0}
+#kpiTip .dim{color:#9ca3af; font-weight:400}
+#kpiTip .pend{color:#fcd34d}
+#kpiTip .sum{display:flex; justify-content:space-between; gap:14px;
+  margin-top:4px; padding-top:4px; border-top:1px solid #374151}
+#kpiTip .note{display:block; margin-top:5px; color:#9ca3af; font-size:11px; line-height:1.45}
+
+/* 지도 안내 — 위성 타일이 안 와서 일반 지도로 되돌렸을 때 뜬다.
+   말없이 바뀌면 "왜 위성이 안 나오지" 하고 버튼만 다시 누르게 된다. */
+#mapNotice{position:fixed; left:50%; bottom:28px; transform:translateX(-50%) translateY(8px);
+  z-index:9998; max-width:min(560px,92vw); padding:11px 16px; background:#1f2937; color:#f9fafb;
+  border-radius:9px; font-size:13px; line-height:1.5; box-shadow:0 8px 24px rgba(0,0,0,.3);
+  opacity:0; pointer-events:none; transition:opacity .18s, transform .18s}
+#mapNotice.on{opacity:1; transform:translateX(-50%) translateY(0)}
+
+/* B-10 — 회색인 이유. 지도 말풍선 안에서 값 자리에 들어간다.
+   값처럼 커 보이면 안 되므로 작고 흐리게 쓴다 — 이건 값이 아니라 '값이 없는 이유'다. */
+.leaflet-tooltip .tip-why{margin:2px 0 4px; padding:3px 6px; background:rgba(0,0,0,.06);
+  border-left:2px solid #9ca3af; border-radius:3px; font-size:11px; line-height:1.4;
+  color:#4b5563; font-weight:400; white-space:normal; max-width:260px}
+
+.chart{margin-top:7px}
+.chart .cap{font-size:10px; color:var(--muted); margin-bottom:3px}
+svg .grid{stroke:var(--grid); stroke-width:1}
+svg .axis{stroke:var(--line); stroke-width:1}
+svg text{fill:var(--ink-2); font-size:10px}
+svg text.val{fill:var(--ink); font-weight:800; font-size:11px}
+
+/* ---------- POI 맵 ---------- */
+.basemaps{display:flex; gap:2px; padding:4px 8px 0; flex-wrap:wrap; align-items:center}
+.basemaps .lbl{font-size:9px; color:var(--muted); margin-right:1px}
+.basemaps button{font-size:10px; padding:3px 6px; border-radius:5px; cursor:pointer;
+  border:1px solid var(--line); background:#fff; color:var(--ink-2); font-weight:700}
+.basemaps button[aria-pressed="true"]{background:var(--brand); border-color:var(--brand); color:#fff}
+.basemaps button[disabled]{opacity:.4; cursor:not-allowed}
+.toggles{display:flex;gap:6px;padding:7px 12px;flex-wrap:wrap;align-items:center}
+.toggle-group{display:flex;gap:5px;align-items:center;flex-wrap:wrap;padding:3px 6px;border:1px solid var(--grid);border-radius:9px;background:#fff}
+.toggle-group.primary{border-color:var(--s350);background:#f4f8fe}
+.toggle-group-label{font-size:10px;color:var(--brand);font-weight:850;white-space:nowrap}
+.poi-filter-chip{border:1px solid var(--s350);background:var(--s100);border-radius:999px;padding:4px 8px;font-weight:700;display:flex;align-items:center;gap:4px;font-size:11px;cursor:pointer;white-space:nowrap}
+.poi-filter-chip input{width:13px;height:13px;margin:0;accent-color:var(--brand)}
+.poi-filter-chip.off{opacity:.45;background:#fff;border-color:var(--line)}
+.dot{width:12px; height:12px; border-radius:50%; display:inline-block; border:2px solid #fff;
+     box-shadow:0 0 0 1px rgba(0,0,0,.25)}
+.cnt{font-variant-numeric:tabular-nums; color:var(--ink-2)}
+
+/* ---------- 상태 ---------- */
+.notice{
+  padding:38px 24px; text-align:center; color:var(--ink-2);
+}
+.notice .big{font-size:22px; font-weight:800; color:var(--ink); margin-bottom:8px}
+.notice code{background:var(--plane); padding:2px 6px; border-radius:6px; font-size:14px}
+.hidden{display:none !important}
+
+table.tbl{width:100%; border-collapse:collapse; font-size:14px}
+table.tbl th,table.tbl td{padding:6px 8px; border-bottom:1px solid var(--grid); text-align:right}
+table.tbl th:first-child,table.tbl td:first-child{text-align:left}
+table.tbl th{color:var(--muted); font-weight:700}
+details.tblwrap{margin-top:10px}
+details.tblwrap summary{font-size:14px; color:var(--ink-2); cursor:pointer}
+
+footer{display:none}
+
+/* 🚫 인쇄(A4) CSS 는 2026-08-05 삭제했다.
+   이 화면은 **조회용이 최종**이고, 인쇄해서 고객에게 건네는 계획이 폐지됐다.
+   인쇄 레이아웃을 남겨 두면 "A4 로 뽑아 배포해도 된다"는 신호가 되므로 지웠다.
+   되살릴 일이 있으면 새 요구사항으로 정의할 것 —
+   삭제 전 원본은 data/archive/20260805_pre_print_removal/index.html 에 있다. */
+
+/* 지도 이름표 마커 (2026-09-17 관리자 요청)
+   자사·경쟁사 = 브랜드명 이름표(로고 없음) · 같은 건물은 세로로 쌓는다(--slot)
+   학교 = 학교급 글자 원 + 마우스를 올리면 학년별 인원 말풍선(특수·순회학급 제외) */
+.poi-label-icon,.poi-school-icon{background:none;border:0}
+.poi-label{position:absolute;left:0;bottom:calc(7px + var(--slot,0) * 24px);transform:translateX(-50%);
+  display:flex;align-items:center;gap:4px;padding:2px 7px 2px 5px;background:#fff;color:#111827;
+  border:1.5px solid #cbd5e1;border-radius:7px;box-shadow:0 1px 3px rgba(0,0,0,.28);
+  font-size:12px;font-weight:700;line-height:16px;white-space:nowrap;cursor:pointer}
+.poi-label .sw{width:8px;height:8px;border-radius:50%;flex:none}
+.poi-label-pin{position:absolute;left:-4px;top:-4px;width:8px;height:8px;border-radius:50%;
+  border:1.5px solid #fff;box-shadow:0 0 0 1px rgba(0,0,0,.35);box-sizing:border-box}
+.poi-school{position:absolute;left:-9px;top:-9px;width:18px;height:18px;border-radius:50%;color:#fff;
+  font-size:11px;font-weight:800;line-height:15px;text-align:center;border:1.5px solid #fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.35);box-sizing:border-box;cursor:pointer}
+/* 학교급 원 바로 밑 학생수 = **말풍선 학년 합**(특수·순회 제외)이다. 학교알리미 재학생 총원
+   (poi 의 students)이 아니다 — 두 값은 71.9%(8,604/11,968) 학교에서 중앙 7명 다르다.
+   말풍선을 열면 바로 옆에 학년별 인원이 뜨므로 합이 안 맞으면 상담 자리에서 바로 들킨다.
+   ⚠️ 위성 배경에서는 숫자가 묻힌다 — 흰 외곽선(text-shadow) 을 빼지 말 것. */
+.poi-school-num{position:absolute;left:0;top:10px;transform:translateX(-50%);
+  font-size:11px;font-weight:800;line-height:12px;white-space:nowrap;
+  /* 학교가 붙어 있으면 이 숫자가 **이웃 학교 원 위에 얹힌다.** 클릭을 통과시키지 않으면
+     그 학교 말풍선이 열리지 않는다 (김포 운양동 초·고 병설에서 실측). */
+  pointer-events:none;
+  text-shadow:0 0 2px #fff,0 0 2px #fff,0 0 2px #fff,0 0 2px #fff}
+.leaflet-tooltip.poi-school-tip{background:#374151;color:#fff;border:0;border-radius:6px;
+  font-size:12px;line-height:1.45;padding:5px 9px;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+.leaflet-tooltip-top.poi-school-tip:before{border-top-color:#374151}
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>지역분석 대시보드</h1>
+    <div class="sub">학원 프랜차이즈 가맹 상담용 · 시도 → 시군구 → 행정동 상권 진단</div>
+  </div>
+  <button type="button" class="badge-src" id="srcBadge" aria-haspopup="dialog" aria-expanded="false" aria-controls="updatePanel">데이터 확인 중…</button>
+</header>
+<div class="update-panel hidden" id="updatePanel" role="dialog" aria-label="데이터 갱신 주기">
+  <button type="button" class="x" id="updatePanelClose" aria-label="닫기">×</button>
+  <h2>데이터 갱신 주기</h2>
+  <table>
+    <thead><tr><th>항목</th><th>주기</th><th>시점</th></tr></thead>
+    <tbody>
+      <tr><td>월간점검 (감시만)</td><td class="c">월 1회 자동</td><td>매월 첫 평일 10:00</td></tr>
+      <tr><td><b>자사·경쟁사·시너지세권</b></td><td class="c"><b>월 1회</b></td><td>월간점검 직후</td></tr>
+      <tr><td><b>인구·실거래·세대수·어린이집·학원 + 경계</b></td><td class="c"><b>분기 1회</b></td><td>1·4·7·10월. 경계 새 버전이 나온 뒤</td></tr>
+      <tr><td>학교</td><td class="c">연 1회</td><td>신학년도 공시가 나온 뒤 (5~6월)</td></tr>
+    </tbody>
+  </table>
+  <h3>데이터별 현재 기준</h3>
+  <table><thead><tr><th>데이터</th><th>기준</th><th>수정일</th></tr></thead><tbody id="updateItems"><tr><td colspan="3">불러오는 중…</td></tr></tbody></table>
+  <div class="last">최종 수정일: <span id="updateLast">-</span></div>
+</div>
+
+<section class="filterbar" id="filterbar">
+  <div class="age-filter" id="ageFilter" aria-label="학령인구 연령 필터">
+    <span class="age-filter-label">학령인구</span>
+    <button type="button" class="age-filter-trigger" id="ageFilterTrigger" aria-expanded="false">3~16세 v</button>
+    <span class="age-status" id="ageStatus">한국나이 · 14개 연령</span>
+    <div class="age-filter-panel hidden" id="ageFilterPanel">
+      <div class="filter-panel-heading">
+        <strong>학령인구 선택 (한국나이)</strong>
+        <button type="button" class="filter-clear" id="ageFilterClear">체크 해제</button>
+        <button type="button" class="filter-close" id="ageFilterClose" aria-label="학령인구 필터 닫기" title="닫기">X</button>
+      </div>
+      <div class="age-presets">
+        <button type="button" data-age-preset="3-16" aria-pressed="true">전체 3~16세</button>
+        <button type="button" data-age-preset="3-7" aria-pressed="false">와이키즈 3~7세</button>
+        <button type="button" data-age-preset="8-16" aria-pressed="false">와이즈만 8~16세</button>
+      </div>
+      <div class="age-checks" id="ageChecks"></div>
+      <div class="age-axis-note">
+        모든 나이는 <b>한국나이(세는나이)</b> 입니다 — <b>8세 = 초1</b> · 13세 = 초6 · 16세 = 중3 · 17~18세 = 고1~고2.<br>
+        인구는 만 나이로 집계된 주민등록(2026-06)을 한국나이로 환산해 씁니다. 3~4세는 인구만 있고 어린이집 원아 수는 없습니다.
+      </div>
+    </div>
+  </div>
+
+  <section class="region-filterbar" id="regionFilterbar" aria-label="지역 순위 필터">
+    <span class="region-filter-label">지역</span>
+    <div class="region-filter-steps" id="regionFilterSteps"></div>
+    <span class="region-filter-hint" id="rankHint">클릭하면 하위 단계로 이동합니다</span>
+    <div class="rank-filter-panel hidden" id="rankFilterPanel">
+      <div class="rank-filter-heading">
+        <strong id="rankTitle">지역 순위</strong>
+        <span class="region-filter-count" id="rankFilterCount"></span>
+        <button type="button" class="filter-close" id="rankFilterClose" aria-label="지역 필터 닫기" title="닫기">X</button>
+      </div>
+      <div class="rank-actions" id="rankActions"></div>
+      <div class="rank" id="rank"></div>
+    </div>
+  </section>
+
+  <div class="poi-brand-filter" id="competitorBrandFilter" data-category="competitor" aria-label="경쟁사 브랜드 필터">
+    <span class="poi-brand-filter-label">경쟁사</span>
+    <button type="button" class="poi-brand-filter-trigger" aria-expanded="false">전체 10개 v</button>
+    <div class="poi-brand-filter-panel hidden">
+      <div class="filter-panel-heading">
+        <strong>경쟁사 목록</strong>
+        <div class="poi-brand-actions">
+          <button type="button" data-brand-action="all">전체 선택</button>
+          <button type="button" data-brand-action="clear">체크 해제</button>
+        </div>
+        <button type="button" class="filter-close" data-brand-action="close" aria-label="경쟁사 필터 닫기" title="닫기">X</button>
+      </div>
+      <div class="poi-brand-checks"></div>
+    </div>
+  </div>
+
+  <div class="poi-brand-filter" id="synergyBrandFilter" data-category="english_kinder" aria-label="시너지세권 브랜드 필터">
+    <span class="poi-brand-filter-label">시너지세권</span>
+    <button type="button" class="poi-brand-filter-trigger" aria-expanded="false">전체 2개 v</button>
+    <div class="poi-brand-filter-panel hidden">
+      <div class="filter-panel-heading">
+        <strong>시너지세권 목록</strong>
+        <div class="poi-brand-actions">
+          <button type="button" data-brand-action="all">전체 선택</button>
+          <button type="button" data-brand-action="clear">체크 해제</button>
+        </div>
+        <button type="button" class="filter-close" data-brand-action="close" aria-label="시너지세권 필터 닫기" title="닫기">X</button>
+      </div>
+      <div class="poi-brand-checks"></div>
+    </div>
+  </div>
+</section>
+
+<nav class="bc" id="bc"></nav>
+
+<main>
+  <!-- 지도 + 랭킹 (전국/시도/시군구 공통) -->
+  <section class="stage" id="stageMap">
+    <div class="card" id="centerMapCard">
+      <div id="overviewMapView">
+        <div class="map-shell">
+          <div id="map"></div>
+          <button type="button" class="map-reset-button" data-dashboard-reset>새로고침</button>
+          <button type="button" class="map-reset-button map-multi-button" data-map-multi aria-pressed="false" title="켜면 Ctrl 없이 클릭만으로 여러 지역을 고른다">다중 선택</button>
+          <button type="button" class="map-reset-button map-drill-button hidden" id="mapDrillButton"></button>
+          <div class="basemaps main-basemaps" id="mainBasemaps"></div>
+        </div>
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="inline-poi hidden" id="inlinePoiView">
+        <div class="hidden" id="poiHint" aria-live="polite"></div>
+        <div class="toggles" id="toggles"></div>
+        <div class="poi-map-shell">
+          <div id="map2"></div>
+          <button type="button" class="map-reset-button" data-dashboard-reset>새로고침</button>
+          <button type="button" class="map-reset-button map-multi-button" data-map-multi aria-pressed="false" title="켜면 Ctrl 없이 클릭만으로 여러 지역을 고른다">다중 선택</button>
+          <div class="basemaps poi-basemaps" id="basemaps"></div>
+        </div>
+      </div>
+    </div>
+    <section class="card region-summary hidden" id="regionSummary"></section>
+    <section class="card region-summary region-detail hidden" id="panel"></section>
+  </section>
+
+  <div class="card notice hidden" id="notice"></div>
+</main>
+
+<footer id="foot"></footer>
+
+<script src="vendor/leaflet.js"></script>
+<script>
+/* =====================================================================
+   0. 설정
+   ===================================================================== */
+const REAL = { geo: "../data/geo/", proc: "../data/processed/" };
+const MOCK = { geo: "mock/geo/",    proc: "mock/" };
+/* 🚫 종합점수·등급은 2026-07-31 폐기 (관리자 결정).
+   화면은 "판정"하지 않고 **실측 지표를 조회**만 한다. 재설계는 docs/TODO.md F-1.
+   색은 등급이 아니라 선택한 지표의 5분위(quintile)로 칠한다. */
+const RAMP = ["#cde2fb", "#9ec5f4", "#5598e7", "#256abf", "#0d366b"];
+
+const METRICS = [
+  {k:"school_age",         label:"학령인구(3~16세)", unit:"명",   d:0},
+    /* ⚠️ 2026-08-03 관리자 정의 — 학원 수 = NEIS `REALM_SC_NM` 이
+     **입시.검정 및 보습**인 것만이다(전국 77,637개). 예능·어학원·독서실·
+     직업기술은 업태가 달라 뺐다. 정의 SSOT = `scripts/collect_neis.py` REALM_KEEP.
+     ⚠️ 이 기준 이전 산출물(전 분야 138,284개)과 증감을 비교하지 말 것. */
+  {k:"academy_cnt",        label:"입시·보습 학원 수", unit:"개",   d:0},
+  {k:"pupils_per_academy", label:"학원 1개당 학령인구", unit:"명", d:1},
+  {k:"school_cnt",         label:"초·중학교 수",      unit:"개",   d:0},
+  {k:"school_students",    label:"초·중 재학생 수",   unit:"명",   d:0},
+  /* 소비력 ① 자산수준 — **중앙값**이 정본이다(2026-08-04). 평균 평당가는
+     초고가 1건에 끌려가서, 거래가 적은 동일수록 크게 튄다(전국 최대 차이 1,344만원/평).
+     표본 10건 미만(low_sample) 동 178곳은 metricVal() 에서 결측 처리돼 색·순위에서 빠진다. */
+  {k:"median_price_per_py", label:"아파트 평당가 (중앙값)", unit:"만원", d:0},
+  /* 소비력 ②③ — K-apt 세대수 조인(C-5, 2026-08-05). 전국 22,257단지 수집 완료분이다.
+     ⚠️ `apt_households`(아파트 세대수) 와 `households`(**주민등록** 세대수)는 다른 값이다.
+     ⚠️ `apt_ratio` 100% 초과 동 67곳은 metricVal() 에서 결측 처리된다(경계 원천 문제, E-4). */
+  {k:"apt_households",     label:"아파트 세대수",     unit:"세대", d:0},
+  {k:"apt_ratio",          label:"아파트 거주 비율",  unit:"%",    d:1, s:100},
+  {k:"housing_asset",      label:"주거자산 총액",     unit:"억원", d:0},
+  {k:"trend_pct",          label:"최근 12개월 인구 증감", unit:"%", d:1},
+  // 경쟁사 축 — competitor_*.json 에서 병합해 넣는다 (mergeCompetitor)
+  {k:"competitor_cnt",     label:"경쟁사 수",        unit:"개",   d:0},
+  /* **시너지세권** = 영어유치원 위치(폴리·라이즈). ⚠️ 경쟁사가 아니다 —
+     유아 사교육 수요가 모이는 자리라 자사는 오히려 그 근처 입점이 유리하다.
+     '많을수록 나쁜 지표'가 아니라 **많을수록 유리한 신호**다. 경쟁사와 합산 금지.
+     ⚠️ 표시명 SSOT 는 `scripts/brands.py` 의 `CATEGORIES` — JSON 키는 `english_kinder` 그대로다
+        (poi_*.json 256개·집계 3종·이력에 박혀 있어 키를 바꾸면 조인이 조용히 끊긴다). */
+  {k:"english_kinder_cnt", label:"시너지세권 수 (영어유치원)", unit:"개", d:0},
+  {k:"own_waikids_cnt",    label:"자사 와이키즈 수",  unit:"개",   d:0},
+  {k:"own_wiseman_cnt",    label:"자사 와이즈만 수",  unit:"개",   d:0},
+  {k:"own_cnt",            label:"자사 센터 수",      unit:"개",   d:0},
+];
+let curMetric = METRICS[0];
+/* 비율 지표는 저장은 소수(0.548), 표시는 % 로 한다. 저장값을 100배로 바꾸면
+   metrics.json 소비자(검증 스크립트 포함)가 전부 갈리므로 **표시에서만** 곱한다. */
+const mScale = () => curMetric.s || 1;
+let bins = [];        // 현재 화면의 5분위 경계
+
+function quintiles(vals){
+  const v = vals.filter(x => x!==null && x!==undefined && !isNaN(x)).sort((a,b)=>a-b);
+  if(v.length < 5) return [];
+  return [1,2,3,4].map(i => v[Math.floor(v.length*i/5)]);
+}
+function binOf(x){
+  if(x===null||x===undefined||isNaN(x)) return -1;
+  let i = 0;
+  while(i < bins.length && x >= bins[i]) i++;
+  return i;
+}
+const POI_MARKER_RADIUS = 4;
+const POI_STYLE = {
+  own_waikids:    {label:"자사 와이키즈", color:"#e11d48", source:"own", brand:"와이키즈"},
+  own_wiseman:    {label:"자사 와이즈만", color:"#c026d3", source:"own", brand:"와이즈만"},
+  competitor:     {label:"경쟁사",      color:"#111827"},
+  /* 학교 필터는 학교명이 아니라 NEIS 학교급(type: 초/중/고) 기준이다. */
+  school_elem:    {label:"초등학교",    color:"#2a78d6", source:"school", type:"초"},
+  school_mid:     {label:"중학교",      color:"#155eae", source:"school", type:"중"},
+  school_high:    {label:"고등학교",    color:"#163f8c", source:"school", type:"고"},
+  /* 초록 = 경쟁사(검정)와 색으로도 구분한다. **시너지세권**은 붙으면 유리한 자리다 — COMPETITOR.md §1 */
+  english_kinder: {label:"시너지세권(영어유치원)", color:"#0e9f6e"},
+  academy:        {label:"입시·보습 학원", color:"#eb6834"},
+  apartment:      {label:"아파트",      color:"#4a3aa7"},
+};
+/* 브랜드 분류 SSOT: scripts/brands.py 의 category 값을 따른다. */
+const POI_BRAND_FILTERS = {
+  competitor:["소마","아담리즈","필즈더클래식","생각하는황소","시매쓰","CMS영재교육센터","CMS영재관","브레인스쿨","한생연","유투엠"],
+  english_kinder:["폴리어학원","라이즈어학원"],
+};
+const state = { level:"nation", sido:null, sgg:null, adm:null, sidos:[], sggs:[], adms:[], usedMock:false, missing:[],
+                /* competitor.json 의 meta.own_brands 로 덮어쓴다 (mock 에는 없어서 기본값을 둔다) */
+                ownBrands:["와이키즈","와이즈만"],
+                /* 새로 열 때는 항상 일반 지도에서 시작한다. */
+                basemap:"plain",
+                vworldKey:null, ageMin:3, ageMax:16,
+                selectedAges:new Set(Array.from({length:14},(_,i)=>i+3)),
+                selectedPoiBrands:Object.fromEntries(Object.entries(POI_BRAND_FILTERS)
+                  .map(([category,brands])=>[category,new Set(brands)])),
+                selectedCodes:new Set(), selectionContext:null };
+const cache = new Map();
+
+/* =====================================================================
+   1. 데이터 로더 — 실데이터(data/) 우선, 없으면 web/mock/
+   ===================================================================== */
+async function tryFetch(url){
+  try{
+    /* GitHub Pages 는 정적 데이터에 max-age=600 을 준다. no-store 로 이를 무효화하면
+       같은 방문에서도 전국 경계와 지표를 매번 다시 내려받아 화면이 수 초 비었다. */
+    const r = await fetch(url);
+    if(!r.ok) return null;
+    return await r.json();
+  }catch(e){ return null; }
+}
+async function load(kind, file){          // kind: "geo" | "proc"
+  const key = kind+"/"+file;
+  if(cache.has(key)) return cache.get(key);
+  let d = await tryFetch(REAL[kind]+file);
+  if(d === null){
+    d = await tryFetch(MOCK[kind]+file);
+    if(d !== null){ state.usedMock = true; }
+  }
+  if(d === null) state.missing.push(file);
+  cache.set(key, d);
+  updateBadge();
+  return d;
+}
+async function loadOptional(kind, file){
+  const key=kind+"/"+file;
+  if(cache.has(key)) return await cache.get(key);
+  const pending=tryFetch(REAL[kind]+file);
+  cache.set(key,pending);
+  const data=await pending;
+  cache.set(key,data);
+  updateBadge();
+  return data;
+}
+/* 경쟁사 집계를 metrics 에 얹어 "선택 가능한 지표"로 만든다.
+   ⚠️ 경쟁사가 0인 지역은 competitor_*.json 에 **키 자체가 없다.**
+      undefined 로 두면 코로플레스에서 결측(회색)이 되어 "경쟁사 없음"이
+      "데이터 없음"으로 읽힌다 — 0 으로 채운다 (B-8 과 같은 취지). */
+function filteredPoiBrandCount(byBrand,category){
+  const selected=state.selectedPoiBrands[category]||new Set();
+  return [...selected].reduce((sum,brand)=>sum+Number((byBrand&&byBrand[brand])||0),0);
+}
+function applyPoiBrandFilters(met){
+  if(!met||!met.data) return met;
+  Object.values(met.data).forEach(m=>{
+    m.competitor_cnt=filteredPoiBrandCount(m.comp_brands,"competitor");
+    m.english_kinder_cnt=filteredPoiBrandCount(m.comp_brands,"english_kinder");
+  });
+  return met;
+}
+function mergeCompetitorData(met,comp){
+  if(!met || !met.data) return met;
+  if(met.__comp) return applyPoiBrandFilters(met);
+  const cd = (comp && comp.data) || null;
+  for(const [code, m] of Object.entries(met.data)){
+    const c = cd ? cd[code] : null;
+    m.own_cnt            = c ? c.own : 0;
+    m.own_waikids_cnt    = c && c.by_brand ? (c.by_brand["와이키즈"] || 0) : 0;
+    m.own_wiseman_cnt    = c && c.by_brand ? (c.by_brand["와이즈만"] || 0) : 0;
+    m.competitor_cnt     = c ? c.competitor : 0;
+    m.english_kinder_cnt = c ? c.english_kinder : 0;
+    /* ⚠️ 경쟁사 + 시너지세권을 하나로 합친 `rival_cnt` 는 2026-08-03 삭제했다.
+       시너지세권은 경쟁 상대가 아니라 **붙으면 유리한 자리**라,
+       합산하면 "영유가 많은 좋은 자리"가 "경쟁 심한 자리"로 뒤집혀 읽힌다. */
+    m.comp_brands        = c ? c.by_brand : null;
+  }
+  met.__comp = !!cd;
+  met.__compMeta = comp ? comp.meta : null;
+  /* 자사 브랜드는 **하드코딩하지 않는다.** 자사가 와이키즈 하나였을 때 만든 화면이라
+     "와이키즈"가 박혀 있었는데, 2026-08-03 와이즈만이 들어오면서 자사가 둘이 됐다.
+     한쪽만 강조하면 나머지 자사 브랜드가 경쟁사처럼 읽힌다 → meta 를 따른다. */
+  if(comp && comp.meta && comp.meta.own_brands) state.ownBrands = comp.meta.own_brands;
+  /* 아직 자료를 못 받은 축(brands.py PENDING). 화면에 "0개"로 보이는 것이
+     실측 0인지 미수령인지 구분할 근거가 없으면 상담에서 잘못 읽힌다. */
+  if(comp && comp.meta && comp.meta.pending) state.pendingAxes = comp.meta.pending;
+  return applyPoiBrandFilters(met);
+}
+async function mergeCompetitor(metFile, compFile){
+  const [met, comp] = await Promise.all([load("proc", metFile), load("proc", compFile)]);
+  return mergeCompetitorData(met,comp);
+}
+function isOwnBrand(name){ return (state.ownBrands || []).includes(name); }
+
+/* ── 나이 축 ──────────────────────────────────────────────────────────────
+   화면·필터·프리셋은 전부 **한국나이(세는나이)** 다. 8세 = 초1.
+   반면 데이터는 전부 **만 나이** 축이다 — 주민등록 age_year 도, 학교
+   students_age_N 도. 그래서 데이터를 꺼내기 직전에만 toManAge() 로 환산한다.
+   state.selectedAges 에 담긴 값은 언제나 한국나이다.
+   여기서 축이 섞이면 초1 학생수가 유치원 칸에 들어간다. */
+const KOR_AGE_OFFSET = 2;                  // 한국나이 − 만나이
+const KOR_AGE_MIN = 3, KOR_AGE_MAX = 18;   // 체크박스 범위 = 만 1~16세
+const toManAge = kor => kor - KOR_AGE_OFFSET;
+
+function selectedAgeList(){ return [...state.selectedAges].sort((a,b)=>a-b); }
+function ageRangeLabel(){
+  const ages=selectedAgeList();
+  if(!ages.length) return "선택 없음";
+  const continuous=ages.every((age,i)=>i===0||age===ages[i-1]+1);
+  return continuous ? `${ages[0]}~${ages[ages.length-1]}세` : `${ages.join("·")}세`;
+}
+function ageRangeTotal(p, min=null, max=null){
+  if(!p) return null;
+  /* 인자도 한국나이로 받는다. 만나이 환산은 이 함수 안에서만 한다. */
+  const ages=((min!==null&&max!==null)
+    ? Array.from({length:max-min+1},(_,i)=>min+i) : selectedAgeList()).map(toManAge);
+  if(p.age_year){
+    let total = 0;
+    for(const age of ages) total += Number(p.age_year[String(age)] || 0);
+    return total;
+  }
+  /* 구버전 mock 폴백. 실데이터는 age_year 1세 단위를 사용한다. */
+  const spans = [["0_5",0,5],["6_11",6,11],["12_14",12,14],["15_17",15,17]];
+  let total = 0;
+  for(const [key,lo,hi] of spans){
+    const overlap=ages.filter(age=>age>=lo&&age<=hi).length;
+    if(overlap) total += Math.round(Number((p.age||{})[key]||0)*overlap/(hi-lo+1));
+  }
+  return total;
+}
+/* ages 는 한국나이. 만나이로는 유치원 3~5 · 초 6~11 · 중 12~14 · 고 15~17 이다.
+   grade = 말풍선에 띄울 학년 이름. pending = 원천이 아직 없어 못 채우는 나이. */
+const SCHOOL_AGE_GROUPS = [
+  /* [2026-08-12] 어린이집이 붙으면 한국나이 3~4세(=만1~2세) 칸이 채워진다.
+     유치원(교육부)은 만3세부터라 이 구간이 원천에 아예 없다 — 어린이집 CHILD_CNT_01/02
+     가 유일한 원천이고, 두 원천은 배타적이라 5~7세는 합산이 맞다.
+     ⚠️ 어린이집 축이 **아직 안 붙은 상태로도 발행**된다(수집 미완). 그래서 라벨·나이 범위를
+        고정하지 않고 `metrics.meta.axes.childcare` 를 보고 정한다 — 안 붙었는데 3~4세 칸을
+        열어 두면 **0 이 실측처럼 보인다.** 수집이 끝나면 저절로 열린다. */
+  {key:"kinder", label:"유치원 원아", ages:[5,6,7],
+   grade:{5:"유치원 5세반", 6:"유치원 6세반", 7:"유치원 7세반"},
+   pending:{3:"어린이집·가정보육", 4:"어린이집·가정보육"},
+   withChildcare:{
+     label:"유치원·어린이집 원아", ages:[3,4,5,6,7], pending:null,
+     grade:{3:"어린이집 만1세", 4:"어린이집 만2세",
+            5:"유치원 5세반·어린이집", 6:"유치원 6세반·어린이집", 7:"유치원 7세반·어린이집"}}},
+  {key:"elem", label:"초등학교 재학생", ages:[8,9,10,11,12,13],
+   grade:{8:"초1", 9:"초2", 10:"초3", 11:"초4", 12:"초5", 13:"초6"}},
+  {key:"mid", label:"중학교 재학생", ages:[14,15,16],
+   grade:{14:"중1", 15:"중2", 16:"중3"}},
+  {key:"high", label:"고등학교 재학생", ages:[17,18,19],
+   grade:{17:"고1", 18:"고2", 19:"고3"}},
+];
+/* 어린이집 축이 붙었는지에 따라 유아 그룹이 달라진다. metrics 가 스스로 알려 준다
+   (`meta.axes.childcare`) — 화면에 상수로 박아 두면 데이터가 먼저 붙어도 칸이 안 열리고,
+   반대로 데이터가 빠졌는데 칸만 열려 **0 이 실측처럼 보이는** 사고가 난다. */
+let HAS_CHILDCARE = false;
+function setAxes(met){
+  HAS_CHILDCARE = !!(met && met.meta && met.meta.axes && met.meta.axes.childcare);
+}
+function ageGroups(){
+  return SCHOOL_AGE_GROUPS.map(g =>
+    (g.withChildcare && HAS_CHILDCARE) ? Object.assign({}, g, g.withChildcare) : g);
+}
+function filteredSchoolStudents(m, group){
+  const selected=state.selectedAges;
+  return group.ages.reduce((sum,age)=>
+    sum+(selected.has(age)?Number(m[`students_age_${toManAge(age)}`]||0):0),0);
+}
+/* ── 말풍선 내역 ─────────────────────────────────────────────────────────
+   카드 숫자는 **필터에 걸린 것만** 더한 값이다. 그래서 내역에도 전 학년을 다 띄우되
+   필터에서 빠진 줄은 「필터 제외」로 표시한다 — 안 그러면 합이 안 맞아 보인다. */
+function tipRow(label, value){
+  return `<div class="g"><span>${label}</span><span>${value}</span></div>`;
+}
+function gradeTip(m, group){
+  const sel=state.selectedAges;
+  let html=`<b>${group.label}</b> <span class="dim">· 한국나이</span><br>`;
+  for(const [age,label] of Object.entries(group.pending||{})){
+    html+=tipRow(`${age}세 <span class="dim">${label}</span>`,
+                 `<span class="pend">데이터 수집중</span>`);
+  }
+  let total=0;
+  for(const age of group.ages){
+    const v=Number(m[`students_age_${toManAge(age)}`]||0);
+    const on=sel.has(age);
+    if(on) total+=v;
+    html+=tipRow(`${age}세 <span class="dim">${group.grade[age]}</span>`,
+      on?`${fmt(v)}명`:`<span class="dim">${fmt(v)}명 · 필터 제외</span>`);
+  }
+  html+=`<div class="sum"><span>필터 합계</span><span><b>${fmt(total)}명</b></span></div>`;
+  html+=`<span class="note">학교알리미·유치원알리미 공시(2026년) 학년별 인원`
+      + `${group.key==="kinder"?` · 어린이집은 보육통합정보 공개(정보공개포털) 연령별 현원`:""}.`
+      + ` 학교 <b>소재지</b> 기준이라 통학 유입이 있으면 그 동 인구보다 클 수 있다.`
+      + ` 0 은 결측이 아니라 실측이다.</span>`;
+  return html;
+}
+function brandTip(m, category, head, note){
+  const sel=state.selectedPoiBrands[category]||new Set();
+  let html=`<b>${head}</b><br>`, total=0;
+  for(const b of (POI_BRAND_FILTERS[category]||[])){
+    const v=Number((m.comp_brands&&m.comp_brands[b])||0);
+    const on=sel.has(b);
+    if(on) total+=v;
+    html+=tipRow(b, on?`${fmt(v)}개`:`<span class="dim">${fmt(v)}개 · 필터 해제</span>`);
+  }
+  html+=`<div class="sum"><span>합계</span><span><b>${fmt(total)}개</b></span></div>`;
+  if(note) html+=`<span class="note">${note}</span>`;
+  return html;
+}
+function applyAgeRange(met, pop){
+  if(!met || !met.data || !pop || !pop.data) return met;
+  for(const [code,m] of Object.entries(met.data)){
+    const p = pop.data[code];
+    if(!p) continue;
+    m.school_age = ageRangeTotal(p);
+    m.pupils_per_academy = m.academy_cnt > 0 ? Math.round(m.school_age/m.academy_cnt*10)/10 : null;
+  }
+  METRICS[0].label = `학령인구(${ageRangeLabel()})`;
+  return met;
+}
+const LEVEL_FILES = {
+  sido:{metrics:"metrics_sido.json", competitor:"competitor_sido.json", population:"population_sido.json"},
+  sgg: {metrics:"metrics_sgg.json",  competitor:"competitor_sgg.json",  population:"population_sgg.json"},
+  adm: {metrics:"metrics.json",      competitor:"competitor_adm.json",  population:"population.json"},
+};
+async function loadLevelData(level){
+  const f = LEVEL_FILES[level];
+  const [met,pop] = await Promise.all([
+    mergeCompetitor(f.metrics, f.competitor), load("proc", f.population)
+  ]);
+  applyAgeRange(met,pop);
+  return {level, met, pop};
+}
+function combineWebBundles(bundles){
+  const valid=bundles.filter(Boolean);
+  if(!valid.length) return null;
+  const mergeSection=key=>({
+    meta:valid[0][key]&&valid[0][key].meta||{},
+    data:Object.assign({},...valid.map(bundle=>bundle[key]&&bundle[key].data||{}))
+  });
+  return {
+    geo:{type:"FeatureCollection",features:valid.flatMap(bundle=>bundle.geo&&bundle.geo.features||[])},
+    metrics:mergeSection("metrics"),
+    population:mergeSection("population"),
+    competitor:mergeSection("competitor")
+  };
+}
+function levelDataFromBundle(level,bundle){
+  const met=bundle&&bundle.metrics;
+  setAxes(met);
+  const pop=bundle&&bundle.population;
+  mergeCompetitorData(met,bundle&&bundle.competitor);
+  applyAgeRange(met,pop);
+  return {level,met,pop};
+}
+async function loadNationViewData(){
+  const bundle=await loadOptional("proc","web_sido.json");
+  if(bundle&&bundle.geo) return {geo:bundle.geo,data:levelDataFromBundle("sido",bundle)};
+  const [geo,data]=await Promise.all([load("geo","sido.geojson"),loadLevelData("sido")]);
+  return {geo,data};
+}
+async function loadSggViewData(sidoCodes){
+  const bundles=await Promise.all(sidoCodes.map(code=>loadOptional("proc",`web_sgg_${code}.json`)));
+  if(bundles.every(Boolean)){
+    const bundle=combineWebBundles(bundles);
+    return {geo:bundle.geo,data:levelDataFromBundle("sgg",bundle)};
+  }
+  const [geo,data]=await Promise.all([load("geo","sgg.geojson"),loadLevelData("sgg")]);
+  return {geo,data};
+}
+async function loadAdmViewData(sggCodes){
+  const bundles=await Promise.all(sggCodes.map(code=>loadOptional("proc",`web_adm_${code}.json`)));
+  if(bundles.every(Boolean)) return levelDataFromBundle("adm",combineWebBundles(bundles));
+  return loadLevelData("adm");
+}
+
+function updateBadge(){
+  const b = document.getElementById("srcBadge");
+  if(state.usedMock){
+    b.className = "badge-src mock";
+    b.textContent = "⚠ 샘플(mock) 데이터 — 실데이터 아님";
+  }else{
+    b.className = "badge-src";
+    b.textContent = "데이터 갱신 주기";
+  }
+}
+/* 「데이터 갱신 주기」 팝업 — 기준·최종 수정일은 build_web_payload.py 가 만드는 web_update_info.json */
+async function openUpdatePanel(){
+  const panel=document.getElementById("updatePanel");
+  panel.classList.remove("hidden");
+  document.getElementById("srcBadge").setAttribute("aria-expanded","true");
+  const info=await loadOptional("proc","web_update_info.json");
+  const esc=t=>String(t??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  document.getElementById("updateItems").innerHTML = info && info.items
+    ? info.items.map(i=>`<tr><td>${esc(i.name)}</td><td class="c">${esc(i.basis)}</td><td class="c">${esc(i.updated)}</td></tr>`).join("")
+    : `<tr><td colspan="3">정보 없음</td></tr>`;
+  document.getElementById("updateLast").textContent = (info && info.updated) || "-";
+}
+function closeUpdatePanel(){
+  document.getElementById("updatePanel").classList.add("hidden");
+  document.getElementById("srcBadge").setAttribute("aria-expanded","false");
+}
+document.getElementById("srcBadge").addEventListener("click",e=>{
+  e.stopPropagation();
+  document.getElementById("updatePanel").classList.contains("hidden") ? openUpdatePanel() : closeUpdatePanel();
+});
+document.getElementById("updatePanelClose").addEventListener("click",closeUpdatePanel);
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeUpdatePanel(); });
+document.addEventListener("click",e=>{
+  const panel=document.getElementById("updatePanel");
+  if(!panel.classList.contains("hidden") && !panel.contains(e.target)) closeUpdatePanel();
+});
+function showNotice(title, html){
+  const n = document.getElementById("notice");
+  n.innerHTML = `<div class="big">${title}</div><div>${html}</div>`;
+  n.classList.remove("hidden");
+}
+function hideNotice(){ document.getElementById("notice").classList.add("hidden"); }
+
+/* =====================================================================
+   2. 지도
+   ===================================================================== */
+let map, layer, map2, poiLayers = {};
+let mainBaseLayers = [];
+function initMap(){
+  if(map) return;
+  map = L.map("map", {zoomControl:true, attributionControl:true,
+                      scrollWheelZoom:true}).setView([36.3,127.8], 7);
+  map.zoomControl.setPosition("bottomright");
+  map.attributionControl.setPrefix("");
+  applyMainBasemap();
+  drawBasemapButtons();
+}
+function clearLayer(){ if(layer){ map.removeLayer(layer); layer = null; } }
+
+/* 지표 값 접근은 **반드시 metricVal() 로** 한다. 가격 지표는 `low_sample` 인 동을
+   결측으로 다뤄야 하고(색·5분위 경계·툴팁 전부), 한 군데라도 raw 접근이 남으면
+   24개월 매매 3건짜리 동이 코로플레스 최상위 색을 칠한다. */
+const PRICE_KEYS = new Set(["median_price_per_py", "avg_price_per_py", "avg_price"]);
+/* 주거자산 총액 = 아파트 세대수 × 평균 매매가라, 가격이 대표성 없는 동(low_sample)에서는
+   오차가 수천억 단위로 증폭된다 → build_metrics 가 아예 null 로 내보내지만 화면에서도 막는다. */
+const APT_RATIO_KEYS = new Set(["apt_ratio"]);
+function metricVal(m, key){
+  key = key || curMetric.k;
+  if(!m) return null;
+  if(PRICE_KEYS.has(key) && m.low_sample) return null;
+  /* 아파트 거주 비율이 100% 를 넘는 동 67곳은 **경계 원천의 분동 반영 지연** 때문이다
+     (전주 만성지구 = 주민등록 혁신동 / 경계 여의동). 값은 남기되 색·5분위·순위에서 뺀다 —
+     "아파트 거주 188%" 가 상담 자리에서 최상위 색으로 칠해지면 방어할 수 없다. TODO E-4 */
+  if(APT_RATIO_KEYS.has(key) && m.apt_ratio_suspect) return null;
+  const v = m[key];
+  return (v===undefined) ? null : v;
+}
+
+function colorOf(code, metrics){
+  const m = metrics && metrics.data ? metrics.data[code] : null;
+  if(!m) return "#eeeeea";
+  const b = binOf(metricVal(m));
+  return b < 0 ? "#eeeeea" : RAMP[Math.min(b, RAMP.length-1)];
+}
+function styleFor(code, metrics){
+  const satellite = currentBase().dark;
+  return {fillColor:colorOf(code,metrics), fillOpacity:satellite ? .55 : .85, color:"#ffffff",
+          weight:2.4, opacity:1, className:"region-boundary"};
+}
+function fmt(n, d=0){
+  if(n===null||n===undefined||isNaN(n)) return "–";
+  return Number(n).toLocaleString("ko-KR",{minimumFractionDigits:d, maximumFractionDigits:d});
+}
+function 만원(v){
+  if(v===null||v===undefined||isNaN(v)) return "–";
+  return v >= 10000 ? (v/10000).toFixed(1)+"억" : fmt(v)+"만";
+}
+
+/* 아파트 평당가 — 소비력 ① 자산수준.  (2026-08-04)
+   ① **중앙값이 정본**이다. 평균은 초고가 1건에 끌려간다: 매매가 10건뿐인 동에
+      60억짜리 하나가 섞이면 그 동이 강남보다 비싸 보인다.
+      median_price_per_py 가 없는 옛 산출물이면 평균으로 폴백한다.
+   ② `low_sample`(24개월 매매 10건 미만, 전국 178개 동)은 **숫자를 띄우지 않는다.**
+      "싸다/비싸다"가 아니라 "모른다"이고, 우연히 나온 값이 순위에 섞이면
+      상담 자리에서 되돌릴 수 없다. */
+function pyPrice(a){
+  if(!a) return null;
+  if(a.low_sample) return null;
+  const v = (a.median_price_per_py!=null) ? a.median_price_per_py : a.avg_price_per_py;
+  return (v===null||v===undefined||v===0) ? null : v;
+}
+function pyPriceText(a, suffix=""){
+  if(a && a.low_sample) return `<span class="lowsample" title="24개월 매매 ${fmt(a.deal_count)}건 — 표본이 적어 가격을 대표하지 못한다">표본 부족</span>`;
+  const v = pyPrice(a);
+  return v===null ? "–" : fmt(v)+suffix;
+}
+
+let lastDraw = null;   // 지표를 바꿀 때 같은 화면을 다시 그리기 위한 상태
+function selectedRegionStyle(code, metrics){
+  const base=styleFor(code,metrics);
+  const hasSelection=state.selectedCodes.size>0;
+  if(!hasSelection) return base;
+  if(state.selectedCodes.has(String(code)))
+    return {...base,color:"#ffffff",weight:5,opacity:1,fillOpacity:currentBase().dark ? .68 : .92};
+  return {...base,color:"#ffffff",weight:1.8,opacity:.85,fillOpacity:.12};
+}
+function applyMapSelection(focus=false){
+  if(!layer || !map) return;
+  let selectedBounds=null;
+  layer.eachLayer(lyr=>{
+    const code=lyr.feature && lyr.feature.properties ? String(lyr.feature.properties.code) : "";
+    const selected=state.selectedCodes.has(code);
+    lyr.setStyle(selectedRegionStyle(code,lastDraw&&lastDraw.metrics));
+    if(selected){
+      selectedBounds=selectedBounds ? selectedBounds.extend(lyr.getBounds()) : lyr.getBounds();
+      try{lyr.bringToFront();}catch(e){}
+    }
+  });
+  if(focus && selectedBounds && selectedBounds.isValid()){
+    const level=state.selectionContext && state.selectionContext.level;
+    const maxZoom=level==="sido"?8:level==="sgg"?11:13;
+    map.invalidateSize({pan:false});
+    map.fitBounds(selectedBounds,{padding:[32,32],maxZoom,animate:false});
+  }
+}
+
+/* B-10 — **회색인 이유는 지표마다 다르다.**
+   지도에서 회색은 전부 똑같아 보이지만 뜻이 제각각이다. 서울 도심의 회색은
+   "학교가 없는 오피스가"고 경북 산골의 회색은 "아파트 거래가 없는 시골"인데,
+   상담 자리에서 이 둘은 완전히 다른 이야기다. 그래서 사유를 말로 적는다.
+   ⚠️ 0 은 결측이 아니라 실측이다 — "경쟁사 0개"는 없다는 뜻이지 모른다는 뜻이 아니다. */
+function grayReason(m){
+  const k = curMetric.k;
+  if(PRICE_KEYS.has(k) && m.low_sample)
+    return `24개월 매매가 ${fmt(m.deal_count)}건뿐이라 대표성이 없다 — 색·순위에서 뺐다`;
+  if(k === "apt_ratio" && m.apt_ratio_suspect)
+    return "아파트 세대수가 주민등록 세대수를 넘는다(신축 미입주 등) — 색·순위에서 뺐다";
+  if(PRICE_KEYS.has(k) || k === "housing_asset")
+    return "최근 24개월 아파트 매매 거래가 없다 — 값이 없는 게 아니라 거래 자체가 없다";
+  if(k === "apt_households" || k === "apt_ratio")
+    return "이 동에 아파트 단지가 없다";
+  // ⚠️ "상업·업무지구라서" 같은 이유를 붙이지 말 것. 학교 없는 동 140곳은
+  //    서울 도심(19)과 농촌 면지역에 **양쪽 다** 있어서, 한쪽으로 단정하면 절반이 틀린다.
+  if(k === "school_students")
+    return "이 동에 초·중학교가 없다";
+  if(k === "pupils_per_academy")
+    return "입시·보습 학원이 0개라 나눌 수 없다";
+  return "이 지표의 값이 없다";
+}
+
+/* 지도 마우스오버 말풍선. 전국·시도·시군구 코로플레스와 **행정동 상세 지도**가
+   같은 함수를 쓴다 — 같은 지역을 어느 화면에서 짚어도 같은 문구가 나와야 한다.
+   ⚠️ 값 접근은 반드시 metricVal() 로 한다. 표본 부족(low_sample)·확인 필요
+   (apt_ratio_suspect)를 숫자로 보여 주면 안 되기 때문이다(§4 표본 부족 표시). */
+function regionTipHtml(name, m){
+  if(!m) return `<b style="font-size:15px">${name}</b><br>지표 준비중`;
+  const v = metricVal(m);
+  const shown = v===null && PRICE_KEYS.has(curMetric.k) && m.low_sample ? "표본 부족"
+              : v===null && curMetric.k==="apt_ratio" && m.apt_ratio_suspect ? "확인 필요"
+              : v===null ? "–"
+              : fmt(v*mScale(), curMetric.d)+curMetric.unit;
+  // 값이 있으면 그냥 줄만 바꾸고, 없으면 그 자리에 **왜 없는지**를 넣는다.
+  const why = v===null ? `<div class="tip-why">${grayReason(m)}</div>` : "<br>";
+  return `<b style="font-size:15px">${name}</b><br>` +
+    `<b>${curMetric.label}</b> ${shown}${why}` +
+    `학령인구 ${fmt(m.school_age)}명 · 입시·보습 학원 ${fmt(m.academy_cnt)}개 · 학교 ${fmt(m.school_cnt)}개<br>` +
+    `자사 ${fmt((m.own_waikids_cnt||0)+(m.own_wiseman_cnt||0))}개 · 경쟁사 ${fmt(m.competitor_cnt)}개 · ` +
+    `<span style="color:#0e9f6e">시너지세권 ${fmt(m.english_kinder_cnt)}개</span>`;
+}
+
+function drawChoropleth(geo, metrics, onClick, filterFn){
+  lastDraw = {geo, metrics, onClick, filterFn};
+  map.stop();
+  map.invalidateSize({pan:false});
+  clearLayer();
+  const feats = geo.features.filter(f => !filterFn || filterFn(f.properties));
+  // 색 구간은 **지금 화면에 있는 지역들** 기준으로 잡는다.
+  // 전국 분포로 고정하면 한 시도 안에서 색 차이가 안 보인다.
+  bins = quintiles(feats.map(f => {
+    const m = metrics && metrics.data ? metrics.data[f.properties.code] : null;
+    return metricVal(m);
+  }));
+  layer = L.geoJSON({type:"FeatureCollection", features:feats}, {
+    style: f => selectedRegionStyle(f.properties.code, metrics),
+    onEachFeature: (f, lyr) => {
+      const p = f.properties;
+      const m = metrics && metrics.data ? metrics.data[p.code] : null;
+      lyr.bindTooltip(regionTipHtml(p.name, m), {sticky:true, direction:"top"});
+      lyr.on("mouseover", () => lyr.setStyle({weight:4, color:"#0b0b0b"}));
+      lyr.on("mouseout",  () => lyr.setStyle(selectedRegionStyle(p.code,metrics)));
+      lyr.on("click", e => {
+        const original=e.originalEvent||{};
+        if(original.ctrlKey||original.metaKey||mapMultiPick){
+          if(original.preventDefault) original.preventDefault();
+          toggleMapRegionSelection(p.code);
+        }else onClick(p);
+      });
+    }
+  }).addTo(map);
+  if(feats.length){
+    const drawnLayer=layer;
+    const bounds=drawnLayer.getBounds();
+    map.fitBounds(bounds, {padding:[16,16],animate:false});
+    requestAnimationFrame(()=>{
+      if(layer!==drawnLayer) return;
+      map.stop();
+      map.invalidateSize({pan:false});
+      map.fitBounds(bounds,{padding:[16,16],animate:false});
+    });
+  }
+  drawLegend();
+}
+function drawLegend(){
+  const el = document.getElementById("legend");
+  const sel = `<select id="metricSel" aria-label="지도에 표시할 지표">` +
+    METRICS.map(m => `<option value="${m.k}"${m.k===curMetric.k?" selected":""}>${m.label}</option>`).join("") +
+    `</select>`;
+  if(!bins.length){
+    el.innerHTML = `<div class="lgtitle">${sel} <span class="lgnote">— 구간을 나눌 만큼 값이 충분하지 않습니다</span></div>`;
+  }else{
+    const d = curMetric.d, u = curMetric.unit, S = mScale();
+    const label = i => i===0 ? `~${fmt(bins[0]*S,d)}`
+                  : i===4 ? `${fmt(bins[3]*S,d)}~`
+                  : `${fmt(bins[i-1]*S,d)}~${fmt(bins[i]*S,d)}`;
+    el.innerHTML =
+      `<div class="lgtitle">${sel}<span class="lgnote">단위 ${u} · 현재 화면 기준 5분위</span></div>` +
+      RAMP.map((c,i) =>
+        `<div class="item"><div class="sw" style="background:${c}"></div>
+         <div class="rg">${label(i)}</div></div>`).join("") +
+      `<div class="item"><div class="sw" style="background:#eeeeea"></div>
+       <div class="rg">값 없음</div></div>`;
+  }
+  const s = document.getElementById("metricSel");
+  if(s) s.onchange = () => {
+    curMetric = METRICS.find(m => m.k === s.value) || METRICS[0];
+    if(lastDraw) drawChoropleth(lastDraw.geo, lastDraw.metrics, lastDraw.onClick, lastDraw.filterFn);
+    if(lastRank) drawRank(lastRank.title, lastRank.rows, lastRank.onClick);
+  };
+}
+
+/* =====================================================================
+   3. 랭킹 리스트
+   ===================================================================== */
+let lastRank = null;
+let selectionRenderFrame = 0;
+let poiSelectionToken = 0;
+let admViewToken = 0;
+let poiRenderVersion = 0;
+const poiMarkerCache = new Map();
+
+function setRankFilterOpen(open){
+  const panel=document.getElementById("rankFilterPanel");
+  if(!panel) return;
+  panel.classList.toggle("hidden",!open);
+  document.querySelectorAll(".region-step[data-picker]").forEach(b=>b.setAttribute("aria-expanded","false"));
+}
+function regionRef(r){
+  return r ? {code:String(r.code),name:r.name||"(무명)"} : null;
+}
+function syncHierarchySelection(rows){
+  const level=state.selectionContext && state.selectionContext.level;
+  const chosen=rows.filter(r=>state.selectedCodes.has(String(r.code))).map(regionRef);
+  if(level==="sido"){
+    state.sidos=chosen; state.sido=chosen.length===1?chosen[0]:null;
+    state.sggs=[]; state.sgg=null; state.adms=[]; state.adm=null;
+  }else if(level==="sgg"){
+    state.sggs=chosen; state.sgg=chosen.length===1?chosen[0]:null;
+    state.adms=[]; state.adm=null;
+  }else if(level==="adm"){
+    state.adms=chosen; state.adm=chosen.length===1?chosen[0]:null;
+  }
+  drawRegionFilterSteps();
+}
+function updateRankSelectionDisplay(){
+  const rows=lastRank?lastRank.rows:[];
+  const count=document.getElementById("rankFilterCount");
+  if(count) count.textContent=state.selectedCodes.size
+    ? `${state.selectedCodes.size}개 선택` : `${rows.length}개 지역`;
+  document.querySelectorAll("#rank .row").forEach(row=>{
+    const selected=state.selectedCodes.has(String(row.dataset.code));
+    row.classList.toggle("selected",selected);
+    const checkbox=row.querySelector(".pick");
+    if(checkbox) checkbox.checked=selected;
+  });
+  drawRegionFilterSteps();
+  syncMapDrillButton();
+}
+let mapMultiPick=false;
+/* 시군구를 2개 이상 고른 상태 = 그 안에서 동을 고르려는 것 (A안, 2026-10-07).
+   목록 패널을 닫거나 지도 하단 버튼을 누르면 고른 시군구들의 행정동 지도로 내려간다. */
+function multiSggPending(){
+  const ctx=state.selectionContext;
+  return !!(ctx && ctx.level==="sgg" && state.sggs.length>=2);
+}
+function drillIntoSelectedSggs(){
+  if(multiSggPending()) viewSggSelection(state.sggs);
+}
+function closeRankFilter(){
+  const panel=document.getElementById("rankFilterPanel");
+  const wasOpen=panel && !panel.classList.contains("hidden");
+  setRankFilterOpen(false);
+  if(wasOpen) drillIntoSelectedSggs();
+}
+function syncMapDrillButton(){
+  const btn=document.getElementById("mapDrillButton");
+  if(!btn) return;
+  const on=multiSggPending();
+  btn.classList.toggle("hidden",!on);
+  if(on) btn.textContent=`선택한 ${state.sggs.length}개 시군구의 행정동 고르기 →`;
+}
+function toggleMapRegionSelection(code){
+  const ctx=state.selectionContext;
+  code=String(code);
+  if(!ctx || !ctx.rows.some(r=>String(r.code)===code)) return;
+  if(state.selectedCodes.has(code)) state.selectedCodes.delete(code);
+  else state.selectedCodes.add(code);
+  syncHierarchySelection(ctx.rows);
+  updateRankSelectionDisplay();
+  renderCurrentSummary();
+  applyMapSelection(true);
+}
+async function openRegionFilterLevel(level){
+  setAgeFilterOpen(false);
+  setPoiBrandFilterOpen(null,false);
+  const panel=document.getElementById("rankFilterPanel");
+  const opener=document.querySelector(`.region-step[data-filter-level="${level}"]`);
+  const closing=!!(panel && !panel.classList.contains("hidden") &&
+    opener && opener.getAttribute("aria-expanded")==="true");
+  setRankFilterOpen(false);
+  if(closing) return;
+  if(level==="nation"){
+    await viewNation();
+    return;
+  }
+  const currentLevel=state.selectionContext && state.selectionContext.level;
+  if(level==="sido" && currentLevel!=="sido"){
+    await viewNation(state.sidos.map(r=>r.code));
+  }else if(level==="sgg"){
+    if(!state.sidos.length) return;
+    if(currentLevel!=="sgg") await viewSidoSelection(state.sidos,state.sggs.map(r=>r.code));
+  }else if(level==="adm"){
+    if(!state.sggs.length) return;
+    if(currentLevel!=="adm") await viewSggSelection(state.sggs,state.adms.map(r=>r.code));
+  }
+  setRankFilterOpen(true);
+  const active=document.querySelector(`.region-step[data-filter-level="${level}"]`);
+  if(active) active.setAttribute("aria-expanded","true");
+}
+function drawRegionFilterSteps(){
+  const el=document.getElementById("regionFilterSteps");
+  if(!el) return;
+  const sidoLabel=state.sidos.length>1?`시도 ${state.sidos.length}개`:state.sido?state.sido.name:"시도 선택";
+  const sggLabel=state.sggs.length>1?`시군구 ${state.sggs.length}개`:state.sgg?state.sgg.name:"시군구 선택";
+  const admLabel=state.adms.length>1?`행정동 ${state.adms.length}개`:state.adm?state.adm.name:"행정동 선택";
+  const steps=[
+    {level:"nation",label:"전국",enabled:true,value:true,picker:false},
+    {level:"sido",label:sidoLabel,enabled:true,value:state.sidos.length>0,picker:true},
+    {level:"sgg",label:sggLabel,enabled:state.sidos.length>0,value:state.sggs.length>0,picker:true},
+    {level:"adm",label:admLabel,enabled:state.sggs.length>0,value:state.adms.length>0,picker:true},
+  ];
+  el.innerHTML=steps.map((s,i)=>`${i?`<span class="region-sep">&gt;</span>`:""}
+    <button type="button" class="region-step${s.value?" has-value":""}"
+      data-filter-level="${s.level}" ${s.picker?"data-picker":""}
+      aria-current="${state.level===s.level}" aria-expanded="false" ${s.enabled?"":"disabled"}>
+      ${s.label}${s.picker?`<span class="drop">v</span>`:""}
+    </button>`).join("");
+  el.querySelectorAll(".region-step").forEach(b=>b.onclick=e=>{
+    e.stopPropagation();
+    openRegionFilterLevel(b.dataset.filterLevel);
+  });
+}
+let poiBrandRedrawTimer=0;
+function setPoiBrandFilterOpen(category,open){
+  document.querySelectorAll(".poi-brand-filter").forEach(filter=>{
+    const active=filter.dataset.category===category&&open;
+    filter.querySelector(".poi-brand-filter-panel").classList.toggle("hidden",!active);
+    filter.querySelector(".poi-brand-filter-trigger").setAttribute("aria-expanded",String(active));
+  });
+}
+function syncPoiBrandFilterUI(category){
+  const filter=document.querySelector(`.poi-brand-filter[data-category="${category}"]`);
+  if(!filter) return;
+  const brands=POI_BRAND_FILTERS[category]||[];
+  const selected=state.selectedPoiBrands[category]||new Set();
+  filter.querySelectorAll('.poi-brand-checks input[type="checkbox"]').forEach(input=>{
+    input.checked=selected.has(input.value);
+  });
+  const trigger=filter.querySelector(".poi-brand-filter-trigger");
+  trigger.textContent=selected.size===brands.length
+    ? `전체 ${brands.length}개 v`
+    : selected.size ? `${selected.size}/${brands.length}개 v` : "선택 없음 v";
+}
+async function redrawForPoiBrandFilter(){
+  const selected=[...state.selectedCodes];
+  const ctx=state.selectionContext;
+  if(ctx&&ctx.data) applyPoiBrandFilters(ctx.data.met);
+  if(ctx&&ctx.parent&&ctx.parent.data) applyPoiBrandFilters(ctx.parent.data.met);
+  if(state.level==="adm"&&state.adm) await viewAdm(state.adm);
+  else if(ctx&&ctx.level==="adm"&&state.sggs.length) await viewSggSelection(state.sggs,selected);
+  else if(ctx&&ctx.level==="sgg"&&state.sidos.length) await viewSidoSelection(state.sidos,selected);
+  else await viewNation(ctx&&ctx.level==="sido"?selected:[]);
+}
+function initPoiBrandFilters(){
+  document.querySelectorAll(".poi-brand-filter").forEach(filter=>{
+    const category=filter.dataset.category;
+    const brands=POI_BRAND_FILTERS[category]||[];
+    const checks=filter.querySelector(".poi-brand-checks");
+    checks.innerHTML=brands.map(brand=>
+      `<label><input type="checkbox" value="${brand}" checked><span>${brand}</span></label>`).join("");
+    const scheduleRedraw=()=>{
+      clearTimeout(poiBrandRedrawTimer);
+      poiBrandRedrawTimer=setTimeout(()=>redrawForPoiBrandFilter(),100);
+    };
+    filter.querySelector(".poi-brand-filter-trigger").onclick=e=>{
+      e.stopPropagation();
+      const open=filter.querySelector(".poi-brand-filter-panel").classList.contains("hidden");
+      setRankFilterOpen(false); setAgeFilterOpen(false); setPoiBrandFilterOpen(category,open);
+    };
+    filter.querySelector('[data-brand-action="all"]').onclick=()=>{
+      state.selectedPoiBrands[category]=new Set(brands);
+      syncPoiBrandFilterUI(category); scheduleRedraw();
+    };
+    filter.querySelector('[data-brand-action="clear"]').onclick=()=>{
+      state.selectedPoiBrands[category]=new Set();
+      syncPoiBrandFilterUI(category); scheduleRedraw();
+    };
+    filter.querySelector('[data-brand-action="close"]').onclick=()=>setPoiBrandFilterOpen(null,false);
+    checks.querySelectorAll('input[type="checkbox"]').forEach(input=>input.onchange=()=>{
+      const selected=state.selectedPoiBrands[category];
+      if(input.checked) selected.add(input.value); else selected.delete(input.value);
+      syncPoiBrandFilterUI(category); scheduleRedraw();
+    });
+    syncPoiBrandFilterUI(category);
+  });
+}
+document.addEventListener("pointerdown",e=>{
+  const bar=document.getElementById("regionFilterbar");
+  if(bar && !bar.contains(e.target) && !e.target.closest("#mapDrillButton")) closeRankFilter();
+  const age=document.getElementById("ageFilter");
+  if(age && !age.contains(e.target)) setAgeFilterOpen(false);
+  if(!e.target.closest(".poi-brand-filter")) setPoiBrandFilterOpen(null,false);
+},true);
+document.getElementById("rankFilterClose").onclick=e=>{
+  e.stopPropagation();
+  closeRankFilter();
+};
+document.getElementById("mapDrillButton").onclick=e=>{
+  e.stopPropagation();
+  setRankFilterOpen(false);
+  drillIntoSelectedSggs();
+};
+document.querySelectorAll("[data-map-multi]").forEach(b=>b.onclick=e=>{
+  e.stopPropagation();
+  mapMultiPick=!mapMultiPick;
+  document.querySelectorAll("[data-map-multi]").forEach(x=>x.setAttribute("aria-pressed",String(mapMultiPick)));
+});
+document.getElementById("ageFilterClose").onclick=e=>{
+  e.stopPropagation();
+  setAgeFilterOpen(false);
+};
+document.addEventListener("keydown",e=>{
+  if(e.key!=="Escape") return;
+  closeRankFilter();
+  setAgeFilterOpen(false);
+  setPoiBrandFilterOpen(null,false);
+});
+
+function drawRank(title, rows, onClick){
+  lastRank = {title, rows, onClick};
+  document.getElementById("rankTitle").textContent = title;
+  document.getElementById("rankHint").textContent =
+    `${curMetric.label} 기준 · 지도 클릭은 1개 선택 · Ctrl+클릭 또는 [다중 선택] 켜고 클릭하면 여러 개`;
+  document.getElementById("rankFilterCount").textContent = state.selectedCodes.size
+    ? `${state.selectedCodes.size}개 선택` : `${rows.length}개 지역`;
+  drawRegionFilterSteps();
+  syncMapDrillButton();
+  const actions = document.getElementById("rankActions");
+  actions.innerHTML = rows.length ? `<button data-act="all">전체 선택</button><button data-act="clear">체크 해제</button>` : "";
+  const allBtn = actions.querySelector('[data-act="all"]');
+  const clearBtn = actions.querySelector('[data-act="clear"]');
+  const el = document.getElementById("rank");
+  if(!rows.length){ el.innerHTML = `<div class="notice">표시할 지역이 없습니다.</div>`; return; }
+  const k = curMetric.k;
+  // 값 없음은 뒤로 보낸다 (0 과 구분해야 한다 — 0 은 실측값이다)
+  // ⚠️ 반드시 metricVal() 을 거친다. raw 접근으로 두면 표본 10건 미만인 동이
+  //    순위표 1위로 올라온다 — 지도에서는 회색인데 순위는 최상위가 되는 모순이 생긴다.
+  const val = r => {
+    const v = metricVal(r, k);
+    return (v===null||v===undefined||isNaN(v)) ? null : v;
+  };
+  rows.sort((a,b)=>{
+    const x = val(a), y = val(b);
+    if(x===null && y===null) return 0;
+    if(x===null) return 1;
+    if(y===null) return -1;
+    return y - x;
+  });
+  el.innerHTML = rows.map((r,i)=>`
+    <div class="row${state.selectedCodes.has(String(r.code))?" selected":""}" data-code="${r.code}">
+      <input class="pick" type="checkbox" aria-label="${r.name} 합산 선택"
+             ${state.selectedCodes.has(String(r.code))?"checked":""}>
+      <div class="no">${i+1}</div>
+      <div class="nm" title="${r.name||"(무명)"}">${r.name||"(무명)"}</div>
+      <div class="sc">${val(r)===null?"–":fmt(val(r)*mScale(), curMetric.d)}</div>
+      <div class="un">${curMetric.unit}</div>
+    </div>`).join("");
+  const updateSelectionUI=()=>{
+    syncHierarchySelection(rows);
+    updateRankSelectionDisplay();
+    if(selectionRenderFrame) cancelAnimationFrame(selectionRenderFrame);
+    selectionRenderFrame=requestAnimationFrame(()=>{
+      selectionRenderFrame=0;
+      renderCurrentSummary();
+      applyMapSelection(true);
+    });
+  };
+  if(allBtn) allBtn.onclick = () => {
+    state.selectedCodes = new Set(rows.map(r => String(r.code)));
+    updateSelectionUI();
+  };
+  if(clearBtn) clearBtn.onclick = () => {
+    state.selectedCodes.clear();
+    updateSelectionUI();
+  };
+  el.querySelectorAll(".row").forEach(d => {
+    const pick = d.querySelector(".pick");
+    pick.onclick = e => e.stopPropagation();
+    pick.onchange = () => {
+      if(pick.checked) state.selectedCodes.add(d.dataset.code);
+      else state.selectedCodes.delete(d.dataset.code);
+      updateSelectionUI();
+    };
+    d.onclick = () => {
+      setRankFilterOpen(false);
+      onClick(d.dataset.code);
+    };
+  });
+}
+
+/* =====================================================================
+   4. 브레드크럼
+   ===================================================================== */
+function drawBC(){
+  const el = document.getElementById("bc");
+  const parts = [];
+  parts.push(state.level==="nation"
+    ? `<span class="cur">전국</span>`
+    : `<button data-go="nation">전국</button>`);
+  if(state.sido){
+    parts.push(`<span class="sep">›</span>`);
+    parts.push(state.level==="sido"
+      ? `<span class="cur">${state.sido.name}</span>`
+      : `<button data-go="sido">${state.sido.name}</button>`);
+  }
+  if(state.sgg){
+    parts.push(`<span class="sep">›</span>`);
+    parts.push(state.level==="sgg"
+      ? `<span class="cur">${state.sgg.name}</span>`
+      : `<button data-go="sgg">${state.sgg.name}</button>`);
+  }
+  if(state.adm){
+    parts.push(`<span class="sep">›</span><span class="cur">${state.adm.name}</span>`);
+  }
+  el.innerHTML = parts.join("");
+  el.querySelectorAll("button").forEach(b => b.onclick = () => {
+    const g = b.dataset.go;
+    if(g==="nation") viewNation();
+    else if(g==="sido") viewSido(state.sido);
+    else if(g==="sgg") viewSgg(state.sgg);
+  });
+}
+function showStage(which){
+  const detail=which==="detail";
+  const poiMode=detail||which==="selection";
+  const stage=document.getElementById("stageMap");
+  stage.classList.remove("hidden");
+  stage.classList.toggle("adm-inline",poiMode);
+  document.getElementById("overviewMapView").classList.toggle("hidden",poiMode);
+  document.getElementById("inlinePoiView").classList.toggle("hidden",!poiMode);
+  document.getElementById("panel").classList.toggle("hidden",!detail);
+  if(detail) document.getElementById("regionSummary").classList.add("hidden");
+  if(!poiMode && map){
+    map.stop();
+    map.invalidateSize({pan:false});
+  }
+  setTimeout(refreshMaps,60);
+}
+
+/* =====================================================================
+   5. 뷰 — 전국 / 시도 / 시군구
+   ===================================================================== */
+async function viewNation(preselectedCodes=null){
+  const preserve=Array.isArray(preselectedCodes);
+  if(!preserve){
+    state.sidos=[]; state.sggs=[]; state.adms=[];
+    state.sido=null; state.sgg=null; state.adm=null;
+  }
+  state.level="nation";
+  showStage("map"); drawBC(); initMap();
+  const {geo,data}=await loadNationViewData();
+  const met=data.met;
+  if(!geo){ showStage("none");
+    showNotice("데이터 준비중",
+      `시도 경계 파일(<code>data/geo/sido.geojson</code>)이 아직 없습니다.<br>
+       팀원1의 경계 산출물이 들어오면 자동으로 표시됩니다.`); return; }
+  hideNotice();
+  drawChoropleth(geo, met, p => viewSido({code:p.code, name:p.name}));
+  const rows=geo.features.map(f=>{
+    const m = met && met.data ? met.data[f.properties.code] : null;
+    return {code:f.properties.code, name:f.properties.name,
+            ...(m||{})};   // 지표 전부 실어 보낸다 — 정렬 기준을 화면에서 바꾸므로
+  });
+  const selected=preserve?preselectedCodes.map(String):[];
+  setSelectionContext("sido",rows,data,{codes:rows.map(r=>String(r.code)),name:"전국",data},selected);
+  state.sidos=rows.filter(r=>state.selectedCodes.has(String(r.code))).map(regionRef);
+  state.sido=state.sidos.length===1?state.sidos[0]:null;
+  renderCurrentSummary();
+  drawRank(`시도 순위 (${geo.features.length})`, rows, code => {
+    const f = geo.features.find(x=>x.properties.code===code);
+    viewSido({code, name:f.properties.name});
+  });
+}
+
+async function viewSido(sido){
+  return viewSidoSelection([sido]);
+}
+
+async function viewSidoSelection(sidos,preselectedCodes=null){
+  const parents=(sidos||[]).map(regionRef).filter(Boolean);
+  if(!parents.length) return;
+  const preserve=Array.isArray(preselectedCodes);
+  state.level="sido"; state.sidos=parents; state.sido=parents.length===1?parents[0]:null;
+  if(!preserve){ state.sggs=[]; state.sgg=null; state.adms=[]; state.adm=null; }
+  showStage("map"); drawBC(); initMap();
+  const {geo,data}=await loadSggViewData(parents.map(parent=>String(parent.code)));
+  const parentData=state.selectionContext&&state.selectionContext.level==="sido"
+    ? state.selectionContext.data : await loadLevelData("sido");
+  const met=data.met;
+  if(!geo){ showNotice("데이터 준비중", "시군구 경계 파일이 없습니다."); return; }
+  hideNotice();
+  const parentCodes=new Set(parents.map(r=>String(r.code)));
+  const inSido = p => parentCodes.has(String(p.parent||p.code).slice(0,2));
+  const rows = geo.features.filter(f=>inSido(f.properties)).map(f=>{
+    const m = met && met.data ? met.data[f.properties.code] : null;
+    return {code:f.properties.code, name:f.properties.name,
+            ...(m||{})};   // 지표 전부 실어 보낸다 — 정렬 기준을 화면에서 바꾸므로
+  });
+  const openSgg=code=>{
+    const row=rows.find(r=>String(r.code)===String(code));
+    if(!row) return;
+    const sidoParent=parents.find(r=>String(row.code).slice(0,2)===String(r.code));
+    if(sidoParent){ state.sidos=[sidoParent]; state.sido=sidoParent; }
+    viewSgg(regionRef(row));
+  };
+  drawChoropleth(geo,met,p=>openSgg(p.code),inSido);
+  const selected=preserve?preselectedCodes.map(String):[];
+  const parentName=parents.length===1?parents[0].name:`선택 ${parents.length}개 시도`;
+  setSelectionContext("sgg",rows,data,{codes:parents.map(r=>r.code),name:parentName,data:parentData},selected);
+  state.sggs=rows.filter(r=>state.selectedCodes.has(String(r.code))).map(regionRef);
+  state.sgg=state.sggs.length===1?state.sggs[0]:null;
+  renderCurrentSummary();
+  drawRank(`${parentName} 시군구 순위 (${rows.length})`,rows,openSgg);
+}
+
+async function viewSgg(sgg){
+  return viewSggSelection([sgg]);
+}
+
+async function viewSggSelection(sggs,preselectedCodes=null){
+  const parents=(sggs||[]).map(regionRef).filter(Boolean);
+  if(!parents.length) return;
+  const preserve=Array.isArray(preselectedCodes);
+  state.level="sgg"; state.sggs=parents; state.sgg=parents.length===1?parents[0]:null;
+  if(!preserve){ state.adms=[]; state.adm=null; }
+  showStage("map"); drawBC(); initMap();
+  // 선택한 시군구의 행정동 경계만 병렬 지연 로딩한다.
+  const previousContext=state.selectionContext;
+  const [geos,data] = await Promise.all([
+    Promise.all(parents.map(s=>load("geo",`adm_${s.code}.geojson`))),
+    loadAdmViewData(parents.map(parent=>String(parent.code)))
+  ]);
+  const parentData=previousContext&&previousContext.level==="sgg" ? previousContext.data
+    : previousContext&&previousContext.level==="adm"&&previousContext.parent ? previousContext.parent.data
+    : await loadLevelData("sgg");
+  const met=data.met;
+  const features=geos.filter(Boolean).flatMap(g=>g.features||[]);
+  const geo={type:"FeatureCollection",features};
+  const parentName=parents.length===1?parents[0].name:`선택 ${parents.length}개 시군구`;
+  if(!features.length){
+    clearLayer();
+    showNotice("데이터 준비중",
+      `<b>${parentName}</b>의 행정동 경계 파일이 아직 없습니다.`);
+    setSelectionContext("adm",[],data,{codes:parents.map(r=>r.code),name:parentName,data:parentData},[]);
+    drawRank(`${parentName} 행정동`, [], ()=>{});
+    return;
+  }
+  hideNotice();
+  const rows = geo.features.map(f=>{
+    const m = met && met.data ? met.data[f.properties.code] : null;
+    return {code:f.properties.code, name:f.properties.name,
+            ...(m||{}), _parentSggCode:String(f.properties.code).slice(0,5)};
+  });
+  const title=`${parentName} 행정동 순위 (${rows.length})`;
+  const openAdm=code=>{
+    const row=rows.find(r=>String(r.code)===String(code));
+    if(!row) return;
+    viewAdm({code:String(row.code),name:row.name});
+  };
+  drawChoropleth(geo, met, p => openAdm(p.code));
+  const selected=preserve?preselectedCodes.map(String):[];
+  setSelectionContext("adm",rows,data,{codes:parents.map(r=>r.code),name:parentName,data:parentData},selected);
+  state.adms=rows.filter(r=>state.selectedCodes.has(String(r.code))).map(regionRef);
+  state.adm=state.adms.length===1?state.adms[0]:null;
+  renderCurrentSummary();
+  drawRank(title,rows,openAdm);
+}
+
+/* =====================================================================
+   6. 동 상세
+   ===================================================================== */
+function sumSeries(target, source){
+  if(!source || !source.length) return target;
+  if(!target) return source.map(Number);
+  return target.map((v,i)=>v+Number(source[i]||0));
+}
+function aggregateRegions(codes, data){
+  const addFields = ["academy_cnt","school_cnt","school_students","students_elem","students_mid","students_high","academy_capacity",
+    "apt_households","apt_complexes","households","housing_asset","deal_count",
+    "own_cnt","own_waikids_cnt","own_wiseman_cnt","competitor_cnt","english_kinder_cnt",
+    "kinder_cnt","kinder_kids","students_age_unassigned",
+    /* 어린이집 (2026-08-12). preschool_* = 유치원+어린이집 합계 */
+    "daycare_cnt","daycare_kids","daycare_capacity","daycare_age_unassigned",
+    "preschool_cnt","preschool_kids",
+    /* 만0세부터다 — 3 부터 세면 어린이집이 채운 만0~2세가 상위 합계에서 조용히 빠진다 */
+    ...Array.from({length:18},(_,i)=>`students_age_${i}`)];
+  const m = Object.fromEntries(addFields.map(k=>[k,0]));
+  /* 브랜드별 내역도 합친다. 합계(competitor_cnt)만 더하고 이건 빼먹으면
+     카드 숫자는 1개인데 말풍선 내역은 0개가 되어 서로 어긋난다. */
+  m.comp_brands = {};
+  const p = {total:0, households:0, trend12:null, age_year:{}};
+  /* 행정구역 개편 구간은 12개월 증감을 내지 않는다 (build_metrics.trend_breaks).
+     선택 지역 중 **하나라도** 개편이면 합계도 못 쓴다 — 1년 전에 없던 코드가 섞이면
+     "인구 49% 증가"(검단구·영종구) 같은 숫자가 나온다. */
+  let trendBreak=null;
+  let priceWeight=0, pricePySum=0, priceSum=0, aptWeight=0;
+  let newSum=0, rentalSum=0, builtSum=0;
+  for(const code of codes){
+    const oneM = data.met && data.met.data ? data.met.data[code] : null;
+    const oneP = data.pop && data.pop.data ? data.pop.data[code] : null;
+    if(oneM){
+      addFields.forEach(k => { m[k] += Number(oneM[k]||0); });
+      Object.entries(oneM.comp_brands||{}).forEach(([brand,v])=>{
+        m.comp_brands[brand]=(m.comp_brands[brand]||0)+Number(v||0);
+      });
+      const dw = Number(oneM.deal_count||0);
+      if(dw){
+        priceWeight += dw;
+        pricePySum += Number(oneM.avg_price_per_py||oneM.median_price_per_py||0)*dw;
+        priceSum += Number(oneM.avg_price||0)*dw;
+      }
+      const aw = Number(oneM.apt_households||0);
+      if(aw){
+        aptWeight += aw;
+        newSum += Number(oneM.new_ratio||0)*aw;
+        rentalSum += Number(oneM.rental_ratio||0)*aw;
+        builtSum += Number(oneM.built_age||0)*aw;
+      }
+    }
+    if(oneM && oneM.trend_break) trendBreak = trendBreak || oneM.trend_break;
+    if(oneP){
+      p.total += Number(oneP.total||0);
+      p.households += Number(oneP.households||0);
+      /* 데이터에 플래그가 없던 시절 산출물로도 안전하게 — 0 이 섞인 시계열은 그 자체가 신호다 */
+      if((oneP.trend12||[]).some(x => x===0)) trendBreak = trendBreak || "코드 신설";
+      p.trend12 = sumSeries(p.trend12, oneP.trend12);
+      Object.entries(oneP.age_year||{}).forEach(([age,v])=>{
+        p.age_year[age]=(p.age_year[age]||0)+Number(v||0);
+      });
+    }
+  }
+  m.population = p.total;
+  m.households = p.households || m.households;
+  m.school_age = ageRangeTotal(p);
+  m.pupils_per_academy = m.academy_cnt ? Math.round(m.school_age/m.academy_cnt*10)/10 : null;
+  m.avg_price_per_py = priceWeight ? Math.round(pricePySum/priceWeight) : null;
+  m.avg_price = priceWeight ? Math.round(priceSum/priceWeight) : null;
+  m.median_price_per_py = codes.length===1 && data.met && data.met.data[codes[0]]
+    ? data.met.data[codes[0]].median_price_per_py : null;
+  m.low_sample = codes.length===1 && data.met && data.met.data[codes[0]]
+    ? data.met.data[codes[0]].low_sample : false;
+  m.new_ratio = aptWeight ? newSum/aptWeight : null;
+  m.rental_ratio = aptWeight ? rentalSum/aptWeight : null;
+  m.built_age = aptWeight ? builtSum/aptWeight : null;
+  m.apt_ratio = m.households ? m.apt_households/m.households : null;
+  const t=p.trend12||[];
+  p.trend_pct=(!trendBreak && t.length>1 && t[0])
+    ? Math.round((t[t.length-1]-t[0])/t[0]*1000)/10 : null;
+  m.trend_pct=p.trend_pct;
+  m.trend_break=trendBreak;
+  return {m,p};
+}
+
+function renderRegionSummary(name, codes, data, selected=false){
+  const el=document.getElementById("regionSummary");
+  if(!el || !codes.length){ if(el) el.classList.add("hidden"); return; }
+  const {m,p}=aggregateRegions(codes,data);
+  const multi=codes.length>1;
+  const price = multi ? m.avg_price_per_py : m.median_price_per_py;
+  const priceLabel = multi ? "평당가(거래가중 평균)" : "평당가(중앙값)";
+  const selectionNames = selected && state.selectionContext
+    ? state.selectionContext.rows.filter(r=>state.selectedCodes.has(String(r.code))).map(r=>r.name)
+    : [];
+  const AG=ageGroups();
+  const schoolAgeValues=AG.map(group=>filteredSchoolStudents(m,group));
+  el.classList.remove("hidden");
+  el.innerHTML=`
+    ${selected
+      ? `<div class="selection-note selection-note-large"><span class="selection-text">${multi?`선택 ${codes.length}개 지역 합산`:"선택 지역"} · ${selectionNames.join(" · ")}</span></div>`
+      : `<div class="hero">
+      <div class="nm">${name}</div>
+      <div class="loc">지역 전체 · 학령인구 ${ageRangeLabel()} 기준</div>
+    </div>`}
+    <div class="blocks dashboard-blocks">
+      <div class="blk dashboard-blk market"><div class="section-rail">시장<br>규모</div><div class="section-body">
+        <h3>학령인구·수요<span class="tag">학령인구 필터 적용</span></h3>
+        <div class="kpis">
+          <div class="kpi" data-tip='주민등록 인구 중 <b>상단 필터에서 고른 나이</b>만 더한 값.<br>나이는 <b>한국나이(세는나이)</b> — 8세 = 초1.<br>원천 = 행안부 주민등록(2026-06, 만 나이) 을 한국나이로 환산 · 독립 원천 교차검증 통과'><div class="v">${fmt(m.school_age)}<span class="u">명</span></div><div class="l">${ageRangeLabel()} 학령인구</div></div>
+          <div class="kpi" data-tip='주민등록상 <b>가구 수</b>.<br><span class="warn">아파트 세대수와 다르다</span> — 아파트 거주 비율은 이 둘을 나눈 값이라 섞으면 반드시 틀린다'><div class="v">${fmt(p.households)}<span class="u">세대</span></div><div class="l">주민등록 세대수 (가구 수)</div></div>
+          <div class="kpi" data-tip='${m.trend_break
+            ? `<b>${m.trend_break}</b> — 행정구역이 개편돼 <b>12개월 전과 비교할 수 없다.</b><br>1년 전에 없던 코드가 섞이면 개편 점프가 「인구 증가」로 읽힌다(검단구 +49%·영종구 +48%가 그랬다).<br>그래서 값을 지우고 <b>–</b> 로 둔다 — 결측이 아니다.`
+            : '최근 12개월 <b>총인구</b> 증감률. 학령인구가 아니라 전체 인구 기준'}'><div class="v">${p.trend_pct==null?"–":(p.trend_pct>=0?"+":"")+fmt(p.trend_pct,1)}<span class="u">%</span></div><div class="l">최근 12개월 인구 증감</div></div>
+          ${/* 개편 표시는 **마우스 오버(툴팁)로만** 한다 (2026-08-13 관리자 결정).
+                라벨에 「개편」 배지를 붙였더니 한 줄에 안 들어가 «최근 12개월 인구 증감 개…» 로
+                잘렸다 — 잘린 배지는 설명이 아니라 오타처럼 보인다. */""}
+          <div class="kpi" data-tip='학원 하나가 상대하는 학령인구.<br>학원 = <b>입시·검정 및 보습만</b>(예체능·어학원·독서실 제외)<br>학원이 0개인 동은 나눌 수 없어 <b>–</b> 로 둔다'><div class="v">${m.pupils_per_academy==null?"–":fmt(m.pupils_per_academy,1)}<span class="u">명</span></div><div class="l">${ageRangeLabel()} 인구 ÷ 입시·보습 학원 수</div></div>
+        </div></div></div>
+      <div class="blk dashboard-blk education"><div class="section-rail">교육<br>경쟁</div><div class="section-body">
+        <h3>교육·경쟁 환경<span class="tag">${ageRangeLabel()} 필터 적용</span></h3><div class="kpis competition-row">
+        <div class="kpi" data-tip='자사 브랜드 <b>와이키즈</b> 지점 수.<br>자사는 두 브랜드(와이키즈·와이즈만)이고 둘을 합한 값이 「자사 센터 수」다'><div class="v">${fmt(m.own_waikids_cnt)}<span class="u">개</span></div><div class="l">자사 와이키즈</div></div>
+        <div class="kpi" data-tip='자사 브랜드 <b>와이즈만</b> 지점 수.<br>명부는 관리자 제공 xlsx 기준(크롤 불가)'><div class="v" style="color:#c026d3">${fmt(m.own_wiseman_cnt)}<span class="u">개</span></div><div class="l">자사 와이즈만</div></div>
+        <div class="kpi" data-tip='${brandTip(m,"competitor","경쟁사 브랜드별 지점 수","공식 홈페이지를 <b>월 1회</b> 크롤. 0개는 결측이 아니라 <b>실측</b>이다.")}'><div class="v">${fmt(m.competitor_cnt)}<span class="u">개</span></div><div class="l">경쟁사</div></div>
+        <div class="kpi" data-tip='${brandTip(m,"english_kinder","시너지세권 브랜드별 지점 수",`<span class="warn">경쟁사가 아니다</span> — 유아 사교육 수요가 모이는 자리라 <b>근처 입점이 유리</b>하다. 그래서 경쟁사 수와 합산하지 않는다.`)}'><div class="v" style="color:#0e9f6e">${fmt(m.english_kinder_cnt)}<span class="u">개</span></div><div class="l">시너지세권</div></div>
+        </div>
+        <div class="student-kpis" aria-label="학령인구 필터 적용 학교급별 학생수">
+          ${AG.map((group,index)=>`<div class="student-kpi" data-tip='${gradeTip(m,group)}'><div class="student-label">${group.label}</div><div class="student-value">${fmt(schoolAgeValues[index])}<span class="u">명</span></div></div>`).join("")}
+        </div>
+      </div></div>
+      <div class="blk dashboard-blk housing"><div class="section-rail">구매력<br>주거</div><div class="section-body">
+        <h3>구매력·주거</h3><div class="kpis">
+        <div class="kpi" data-tip='최근 24개월 아파트 매매 실거래의 3.3㎡당 <b>중앙값</b>.<br>평균은 초고가 한 건에 끌려가서 중앙값을 쓴다(차이 최대 1,344만원/평).<br>거래 10건 미만이면 대표성이 없어 <b>표본 부족</b>으로 뜬다'><div class="v">${price==null||m.low_sample?"–":fmt(price)}<span class="u">만원</span></div><div class="l">${priceLabel}</div></div>
+        <div class="kpi" data-tip='최근 24개월 아파트 매매 <b>평균 거래가</b>.<br>여러 지역을 함께 고르면 거래 건수로 가중평균한다'><div class="v">${m.avg_price==null?"–":만원(m.avg_price)}</div><div class="l">평균 매매가${multi?"(거래가중)":""}</div></div>
+        <div class="kpi" data-tip='공동주택관리정보시스템(K-apt)의 <b>공식 세대수</b> · 전국 22,257단지 전수.<br><span class="warn">주민등록 세대수와 다르다</span> — 이쪽은 아파트에 있는 세대만 센다'><div class="v">${fmt(m.apt_households)}<span class="u">세대</span></div><div class="l">아파트 세대수</div></div>
+        <div class="kpi" data-tip='아파트 세대수 ÷ 주민등록 세대수.<br>100%를 넘는 동이 55곳 있는데 대부분 <b>신축 미입주</b>다(K-apt는 전 세대를 세고 주민등록은 입주해야 잡힌다). 그런 동은 색·순위에서 뺀다'><div class="v">${m.apt_ratio==null?"–":fmt(m.apt_ratio*100,1)}<span class="u">%</span></div><div class="l">아파트 거주 비율</div></div>
+        <div class="kpi" data-tip='준공 10년 이내 아파트가 차지하는 비중.<br><b>세대 기준</b>이다(거래 기준이 아니다)'><div class="v">${m.new_ratio==null?"–":fmt(m.new_ratio*100,1)}<span class="u">%</span></div><div class="l">신축(10년 이내) 비중</div></div>
+        <div class="kpi" data-tip='아파트 세대수 × 평균 매매가.<br>그 동에 잠겨 있는 주거자산의 <b>총량</b> — 단가가 아니라 규모를 본다'><div class="v">${fmt(m.housing_asset)}<span class="u">억원</span></div><div class="l">주거자산 총액</div></div>
+      </div></div></div>
+    </div>`;
+}
+
+function setSelectionContext(level, rows, data, parent=null, selectedCodes=[]){
+  state.selectedCodes=new Set(selectedCodes.map(String));
+  state.selectionContext={level,rows,data,parent};
+  applyMapSelection(false);
+}
+function renderCurrentSummary(){
+  const ctx=state.selectionContext;
+  if(!ctx) return;
+  const codes=[...state.selectedCodes];
+  const stage=document.getElementById("stageMap");
+  const admSelection=ctx.level==="adm" && codes.length>0;
+  if(admSelection){
+    showStage("selection"); drawBC(); drawRegionFilterSteps();
+  }else if(stage && stage.classList.contains("adm-inline")){
+    state.level="sgg"; state.adm=null;
+    showStage("map"); drawBC(); drawRegionFilterSteps();
+  }
+  if(codes.length){
+    const one=codes.length===1 ? ctx.rows.find(r=>String(r.code)===String(codes[0])) : null;
+    renderRegionSummary(one?one.name:`선택 ${codes.length}개 지역`, codes, ctx.data, true);
+    if(admSelection) viewSelectedAdmsPoi(codes);
+  }else if(ctx.parent){
+    renderRegionSummary(ctx.parent.name,ctx.parent.codes||[ctx.parent.code],ctx.parent.data,false);
+  }else{
+    document.getElementById("regionSummary").classList.add("hidden");
+  }
+}
+
+async function viewAdm(adm){
+  const viewToken=++admViewToken;
+  poiSelectionToken++;
+  state.level="adm"; state.adm=adm; state.adms=[regionRef(adm)];
+  drawBC(); hideNotice();
+  state.selectedCodes=new Set([String(adm.code)]);
+  updateRankSelectionDisplay();
+  /* 행정동 이름·경계를 바로 클릭해도 체크박스 선택과 같은 신형 요약 카드를 쓴다.
+     구형 상세 패널은 더 이상 진입하지 않고 POI와 요약을 공통 선택 경로가 그린다. */
+  renderCurrentSummary();
+  return;
+  const sgg = state.sgg;
+  const [detailData, aptS, poi, sggData, kapt] = await Promise.all([
+    loadLevelData("adm"),
+    load("proc","apartment.json"),
+    load("proc",`poi_${sgg.code}.json`),
+    loadLevelData("sgg"),
+    /* 아파트 세대수(K-apt). 아직 없으면 조용히 '–' 로 둔다 — load() 가 null 을 준다 */
+    load("proc","kapt.json"),
+  ]);
+  if(viewToken!==admViewToken) return;
+  const met=detailData.met, pop=detailData.pop, metS=sggData.met;
+  state.kapt = kapt;
+  const m  = met  && met.data  ? met.data[adm.code]  : null;
+  const p  = pop  && pop.data  ? pop.data[adm.code]  : null;
+  const a  = aptS && aptS.data ? aptS.data[adm.code] : null;
+  const ms = metS && metS.data ? metS.data[sgg.code] : null;
+
+  const panel = document.getElementById("panel");
+  if(!m && !p && !a){
+    panel.innerHTML = `<div class="notice"><div class="big">데이터 준비중</div>
+      <b>${adm.name}</b>의 지표·인구·아파트 데이터가 아직 없습니다.<br>
+      (팀원2·3 산출물 <code>population.json</code> / <code>metrics.json</code> 대기)</div>`;
+  }else{
+    const kids = p ? ageRangeTotal(p) : (m?m.school_age:null);
+    // 🚫 종합점수·등급·추천문구는 2026-07-31 폐기. 화면은 실측 지표만 보여준다.
+    panel.innerHTML = `
+      <div class="hero">
+        <div class="nm">${adm.name}</div>
+        <div class="loc">${state.sido?state.sido.name:""} ${sgg.name} · 행정동코드 ${adm.code}</div>
+        <div class="facts">
+          <div><b>${fmt(kids)}</b><span>학령인구(${ageRangeLabel()})</span></div>
+          <div><b>${m?fmt(m.academy_cnt):"–"}</b><span>입시·보습 학원(개)</span></div>
+          <div><b>${m?fmt(m.school_cnt):"–"}</b><span>초·중학교(개)</span></div>
+          <div><b>${pyPriceText(a)}</b><span>평당가(만원·중앙값)</span></div>
+        </div>
+      </div>
+      <div class="blocks">
+        <div class="blk">
+          <h3>① 시장 규모<span class="tag">학령인구</span></h3>
+          <div class="kpis">
+            <div class="kpi"><div class="v">${fmt(kids)}<span class="u">명</span></div>
+              <div class="l">선택 학령인구 (${ageRangeLabel()})</div></div>
+            <div class="kpi"><div class="v">${p?fmt(p.age["0_5"]):"–"}<span class="u">명</span></div>
+              <div class="l">유아 (0~5세) · 미래 수요</div></div>
+            <div class="kpi"><div class="v">${p?fmt(p.total):"–"}<span class="u">명</span></div>
+              <div class="l">총인구</div></div>
+            ${/* 개편 구간은 증감 자체가 성립하지 않는다 — 값도 «증가/감소» 꼬리표도 달지 않고,
+                  **이유는 마우스 오버로만** 알린다(라벨에 붙이면 잘린다). */""}
+            <div class="kpi" data-tip='${(m&&m.trend_break)
+              ? `<b>${m.trend_break}</b> — 행정구역이 개편돼 <b>12개월 전과 비교할 수 없다.</b><br>1년 전에 없던 코드라 증감률이 성립하지 않는다.<br>값을 지우고 <b>–</b> 로 둔다 — 결측이 아니다.`
+              : '최근 12개월 <b>총인구</b> 증감률'}'><div class="v">${(!p||p.trend_pct==null||(m&&m.trend_break))?"–":(p.trend_pct>=0?"+":"")+fmt(p.trend_pct,1)}<span class="u">%</span></div>
+              <div class="l">최근 12개월 인구 증감
+                <span class="d ${p&&!(m&&m.trend_break)&&p.trend_pct!=null&&p.trend_pct>=0?'up':'dn'}">${
+                  (m&&m.trend_break)?"": (p&&p.trend_pct!=null?(p.trend_pct>=0?"증가":"감소"):"")}</span></div></div>
+          </div>
+        </div>
+
+        <div class="blk">
+          <h3>② 경쟁 강도<span class="tag">입시·보습 학원 1개당 학령인구</span></h3>
+          <div class="kpis">
+            <div class="kpi"><div class="v">${m && m.academy_cnt===0 ? '–'
+                : (m && m.pupils_per_academy!=null ? fmt(m.pupils_per_academy,1)+'<span class="u">명</span>' : '–')}</div>
+              <div class="l">입시·보습 학원 1개당 학령인구</div></div>
+            <div class="kpi"><div class="v">${m?fmt(m.academy_cnt):"–"}<span class="u">개</span></div>
+              <div class="l">입시·보습 학원 수</div></div>
+            <div class="kpi"><div class="v">${m?fmt(m.school_cnt):"–"}<span class="u">개</span></div>
+              <div class="l">초·중학교 수</div></div>
+          </div>
+        </div>
+
+        <div class="blk">
+          <h3>③ 구매력<span class="tag">아파트 시세</span></h3>
+          <div class="kpis">
+            <div class="kpi"><div class="v">${pyPriceText(a)}<span class="u">만원</span></div>
+              <div class="l">평당가 (중앙값)</div></div>
+            <div class="kpi"><div class="v">${a?만원(a.avg_price):"–"}</div>
+              <div class="l">평균 매매가</div></div>
+            ${(() => {
+              /* 아파트 세대수 — 원천이 RTMS 가 아니라 **K-apt** 다.
+                 RTMS 실거래에는 세대수 항목이 아예 없어서 `apartment.json` 의
+                 households 는 전국 전건 null 이다(그래서 오래 '–' 로 비어 있었다).
+                 ⚠️ 수집이 3일에 나눠 진행되므로, 끝나기 전에는 **적게 나온다.**
+                    적게 나오는 오류는 "아파트 적은 동"으로 보여 눈에 안 띄므로
+                    meta.partial 이면 숫자 대신 수집 중임을 표시한다. */
+              const k  = state.kapt && state.kapt.data ? state.kapt.data[adm.code] : null;
+              const km = state.kapt ? state.kapt.meta : null;
+              if (km && km.partial)
+                return `<div class="kpi"><div class="v" style="font-size:.62em;color:#b45309">수집 중<br>
+                          ${fmt((km.progress||0)*100,0)}%</div>
+                        <div class="l">아파트 세대수</div></div>`;
+              return `<div class="kpi"><div class="v">${k?fmt(k.households):"–"}<span class="u">세대</span></div>
+                        <div class="l">아파트 세대수${k?` · ${fmt(k.complexes)}단지`:""}</div></div>`;
+            })()}
+            <div class="kpi"><div class="v">${m&&m.new_ratio!=null?fmt(m.new_ratio*100):"–"}<span class="u">%</span></div>
+              <div class="l">신축(10년내) 비중</div></div>
+            ${(() => {
+              /* 소비력 ② 규모·밀도 — 아파트 거주 비율.
+                 ⚠️ 100% 초과(67개 동)는 경계 원천의 분동 반영 지연이다(TODO E-4).
+                    숫자를 그대로 띄우면 "아파트 거주 188%"가 상담 자리에 나간다. */
+              if(!m || m.apt_ratio==null)
+                return `<div class="kpi"><div class="v">–</div><div class="l">아파트 거주 비율</div></div>`;
+              if(m.apt_ratio_suspect)
+                return `<div class="kpi"><div class="v" style="font-size:.62em;color:#b45309">확인 필요</div>
+                        <div class="l">아파트 거주 비율</div></div>`;
+              return `<div class="kpi"><div class="v">${fmt(m.apt_ratio*100,1)}<span class="u">%</span></div>
+                      <div class="l">아파트 거주 비율</div></div>`;
+            })()}
+            <div class="kpi"><div class="v">${m&&m.housing_asset!=null?fmt(m.housing_asset):"–"}<span class="u">억원</span></div>
+              <div class="l">주거자산 총액</div></div>
+            <div class="kpi"><div class="v">${m&&m.built_age!=null?fmt(m.built_age,1):"–"}<span class="u">년</span></div>
+              <div class="l">평균 준공 연차</div></div>
+            <div class="kpi"><div class="v">${m&&m.rental_ratio!=null?fmt(m.rental_ratio*100,1):"–"}<span class="u">%</span></div>
+              <div class="l">임대단지 세대 비중</div></div>
+          </div>
+        </div>
+
+        <div class="blk">
+          <h3>④ 경쟁 환경<span class="tag">자사 · 경쟁사 · 시너지세권</span></h3>
+          <div class="kpis">
+            <div class="kpi"><div class="v" style="color:#e11d48">${m?fmt(m.own_waikids_cnt):"–"}<span class="u">개</span></div>
+              <div class="l">동 내 자사 와이키즈</div></div>
+            <div class="kpi"><div class="v" style="color:#c026d3">${m?fmt(m.own_wiseman_cnt):"–"}<span class="u">개</span></div>
+              <div class="l">동 내 자사 와이즈만</div></div>
+            <div class="kpi"><div class="v">${m?fmt(m.competitor_cnt):"–"}<span class="u">개</span></div>
+              <div class="l">동 내 경쟁사</div></div>
+            <div class="kpi"><div class="v" style="color:#0e9f6e">${m?fmt(m.english_kinder_cnt):"–"}<span class="u">개</span></div>
+              <div class="l">동 내 시너지세권 <span style="font-size:.85em;opacity:.7">(영어유치원)</span></div></div>
+            <div class="kpi"><div class="v">${ms?fmt(ms.competitor_cnt):"–"}<span class="u">개</span></div>
+              <div class="l">${sgg.name} 전체 경쟁사</div></div>
+          </div>
+        </div>
+
+        <div class="blk">
+          <h3>⑤ 접근성<span class="tag">학교 · 배후 단지</span></h3>
+          <div class="kpis" id="accessKpis">
+            <div class="kpi"><div class="v" id="kSchool">–</div><div class="l">동 내 초·중학교</div></div>
+            <div class="kpi"><div class="v" id="kApt">–</div><div class="l">동 내 아파트 단지</div></div>
+            <div class="kpi"><div class="v" id="kStu">–</div><div class="l">학교 재학생 합계</div></div>
+          </div>
+        </div>
+      </div>`;
+  }
+  drawPoi(poi, adm.code);
+}
+
+/* verdictText() 는 2026-07-31 삭제.
+   등급별 "★ 최우선 추천 / 추천 / 비추천" 영업 문구를 만들던 함수인데,
+   점수제도 폐기로 근거가 사라졌다. 재도입은 docs/TODO.md F-1 과 함께 검토할 것. */
+
+/* ---------- POI 지도 ---------- */
+/* =====================================================================
+   6b. 베이스맵 (일반 / 위성)
+   =====================================================================
+   ⚠️ 타일은 **인터넷이 있어야** 뜬다. 이 대시보드는 오프라인에서도 동작하는 게
+      원칙이라(README) 타일은 전부 '있으면 좋은' 요소로 얹고, `tileerror` 가 나면
+      스스로 걷어낸다. 위성이 안 뜨면 조용히 빈 배경이 되지 조작이 막히진 않는다.
+
+   ⚠️ **VWorld 는 키 + 도메인 등록이 필요하다.** 키는 `web/config.json` 에서 읽는다
+      (`python scripts/make_web_config.py` 가 .env 의 VWORLD_KEY 로 만든다).
+      키가 없으면 해당 버튼은 비활성으로 보이기만 한다 — 조용히 실패하지 않게.
+
+   POI 마커는 배경과 종류에 관계없이 같은 크기의 선명한 원으로 통일한다.
+
+   ⚠️ 상업적 이용: 가맹상담은 대외 자료이므로 위성 배경은 VWorld 를 사용한다. */
+const BASEMAPS = [
+  {k:"plain", label:"일반", dark:false, build:() => [
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                {maxZoom:19, opacity:.55, attribution:"© OpenStreetMap"})]},
+  {k:"vworld", label:"위성(VWorld)", dark:true, needKey:true, build:key => [
+    L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${key}/Satellite/{z}/{y}/{x}.jpeg`,
+                {maxNativeZoom:18, maxZoom:20, tileSize:256, zoomOffset:0,
+                 updateWhenZooming:true, updateWhenIdle:false, keepBuffer:2,
+                  attribution:"국토교통부 VWorld"})]},
+  {k:"vworld_label", label:"위성+라벨(VWorld)", dark:true, needKey:true, build:key => [
+    L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${key}/Satellite/{z}/{y}/{x}.jpeg`,
+                {maxNativeZoom:18, maxZoom:20, tileSize:256, zoomOffset:0,
+                 updateWhenZooming:true, updateWhenIdle:false, keepBuffer:2,
+                  attribution:"국토교통부 VWorld"}),
+    L.tileLayer(`https://api.vworld.kr/req/wmts/1.0.0/${key}/Hybrid/{z}/{y}/{x}.png`,
+                {maxNativeZoom:18, maxZoom:20, tileSize:256, zoomOffset:0,
+                 updateWhenZooming:true, updateWhenIdle:false, keepBuffer:2})]},
+];
+let baseLayers = [];
+
+function currentBase(){
+  return BASEMAPS.find(b => b.k === state.basemap) || BASEMAPS[0];
+}
+/* 위성 타일이 안 오면 **일반 지도로 되돌린다.**
+   예전에는 실패한 레이어를 걷어내기만 했는데, 그러면 배경이 하얗게 비고 마커만
+   공중에 뜬다 — 상담 중에 그 화면이 나오면 아무 데도 못 짚는다.
+   ⚠️ VWorld 는 **실제로 죽은 적이 있다**(2026-08-11, 키 없이 호출해도 503 =
+   서버 장애). 우리 키·코드 문제가 아니어서 우리가 할 수 있는 건 폴백뿐이다.
+   ⚠️ 영구 차단하지 않는다 — 장애는 몇 시간이면 복구되므로, 사용자가 위성 버튼을
+   다시 누르면 다시 시도한다. */
+function tileFallback(targetMap, l){
+  const b = currentBase();
+  if(!b.needKey) return;                  // 일반 지도(OSM)면 되돌릴 곳이 없다
+  try{ targetMap.removeLayer(l); }catch(e){}
+  if(state.basemap === "plain") return;   // 이미 되돌렸다
+  state.basemap = "plain";
+  showMapNotice("위성 지도를 불러오지 못해 일반 지도로 전환했습니다 · 배경 버튼으로 다시 시도할 수 있습니다");
+  applyMainBasemap(); applyBasemap(); drawBasemapButtons();
+}
+function showMapNotice(msg){
+  let el = document.getElementById("mapNotice");
+  if(!el){
+    el = document.createElement("div");
+    el.id = "mapNotice";
+    document.body.appendChild(el);
+  }
+  el.textContent = msg;
+  el.classList.add("on");
+  clearTimeout(showMapNotice._t);
+  showMapNotice._t = setTimeout(() => el.classList.remove("on"), 6000);
+}
+function applyMainBasemap(){
+  if(!map) return;
+  mainBaseLayers.forEach(l => { try{ map.removeLayer(l); }catch(e){} });
+  const b = currentBase();
+  mainBaseLayers = b.build(state.vworldKey || "");
+  mainBaseLayers.forEach(l => {
+    let bad = 0;
+    l.on("tileerror", () => { if(++bad > 6) tileFallback(map, l); });
+    l.addTo(map);
+  });
+  if(layer){
+    layer.setStyle(f => selectedRegionStyle(f.properties.code, lastDraw && lastDraw.metrics));
+    try{ layer.bringToFront(); }catch(e){}
+  }
+}
+function applyBasemap(){
+  if(!map2) return;
+  baseLayers.forEach(l => { try{ map2.removeLayer(l); }catch(e){} });
+  const b = currentBase();
+  baseLayers = b.build(state.vworldKey || "");
+  baseLayers.forEach(l => {
+    // 타일이 안 오면 일반 지도로 되돌린다 (오프라인·서버 장애에도 배경은 남아야 한다)
+    let bad = 0;
+    l.on("tileerror", () => { if(++bad > 6) tileFallback(map2, l); });
+    l.addTo(map2);
+  });
+  restyleMarkers();
+  raiseKeyLayers();          // 베이스맵을 갈면 순서가 풀린다
+}
+/* 모든 POI 마커는 같은 크기로 표시하고 위성 지도에서도 보이도록 진한 외곽선을 쓴다. */
+function restyleMarkers(){
+  Object.entries(poiLayers).forEach(([k, g]) => {
+    const st = POI_STYLE[k];
+    if(!st || !g.eachLayer) return;
+    g.eachLayer(l => { try{
+      l.setStyle({stroke:true, color:k === "competitor" ? "#f59e0b" : "#111827",
+                  weight:1.5, opacity:1, fillOpacity:1});
+      l.setRadius(POI_MARKER_RADIUS);
+    }catch(e){} });
+  });
+}
+/* ── 상담 지역 위성 미리받기 ────────────────────────────────────────────────
+   위성 타일은 **「지역 × 줌」마다 다른 파일**이다. 그래서 상담 전에 한 번 열어 봤다고
+   다 받아지는 게 아니라, 본 화면 그 줌만 캐시에 남는다. 상담장 와이파이가 좁으면
+   지역을 옮기거나 확대하는 순간 다시 받느라 배경이 비어 보인다.
+
+   이 버튼은 **지금 보이는 범위**를 현재 줌부터 몇 단계 더 깊게 미리 받아 둔다.
+   받은 타일은 브라우저 HTTP 캐시에 들어가므로, 상담 중에는 네트워크가 끊겨도 그 범위는 뜬다.
+
+   ⚠️ 타일 수는 줌 한 단계마다 4배로 는다. 그래서 상한을 두고, 넘으면 깊이를 줄인다 —
+      안 그러면 버튼 한 번에 수천 건을 쏴서 VWorld 한도를 우리가 태운다.
+   ⚠️ 캐시는 브라우저가 관리한다. 시크릿 창·캐시 삭제·다른 기기면 다시 받아야 한다. */
+const PREFETCH_MAX = 400;          // 한 번에 받을 최대 타일 수 (Satellite+Hybrid 합산)
+const PREFETCH_DEPTH = 3;          // 현재 줌부터 몇 단계 더 깊이 받을지
+function tilesInBounds(b, z){
+  const n = Math.pow(2, z), out = [];
+  const lon2x = lon => Math.floor((lon + 180) / 360 * n);
+  const lat2y = lat => {
+    const r = lat * Math.PI / 180;
+    return Math.floor((1 - Math.asinh(Math.tan(r)) / Math.PI) / 2 * n);
+  };
+  const x1 = lon2x(b.getWest()), x2 = lon2x(b.getEast());
+  const y1 = lat2y(b.getNorth()), y2 = lat2y(b.getSouth());
+  for(let x = Math.min(x1,x2); x <= Math.max(x1,x2); x++)
+    for(let y = Math.min(y1,y2); y <= Math.max(y1,y2); y++) out.push([z,x,y]);
+  return out;
+}
+async function prefetchSatellite(targetMap, btn){
+  const key = state.vworldKey;
+  if(!key){ showMapNotice("VWorld 키가 없어 미리받기를 할 수 없습니다"); return; }
+  const b = targetMap.getBounds(), z0 = targetMap.getZoom();
+  let list = [];
+  for(let d = 0; d <= PREFETCH_DEPTH; d++){
+    const z = Math.min(z0 + d, 18);
+    const t = tilesInBounds(b, z);
+    if((list.length + t.length) * 2 > PREFETCH_MAX) break;   // ×2 = 위성+라벨
+    list = list.concat(t);
+  }
+  if(!list.length) list = tilesInBounds(b, z0);
+  const urls = [];
+  for(const [z,x,y] of list){
+    urls.push(`https://api.vworld.kr/req/wmts/1.0.0/${key}/Satellite/${z}/${y}/${x}.jpeg`);
+    urls.push(`https://api.vworld.kr/req/wmts/1.0.0/${key}/Hybrid/${z}/${y}/${x}.png`);
+  }
+  const old = btn.textContent; btn.disabled = true;
+  let done = 0, failed = 0;
+  const next = async () => {
+    while(urls.length){
+      const u = urls.shift();
+      await new Promise(res => {
+        const img = new Image();
+        img.onload = () => { done++; res(); };
+        img.onerror = () => { failed++; done++; res(); };
+        img.src = u;
+      });
+      btn.textContent = `받는 중 ${done}/${done + urls.length}`;
+    }
+  };
+  await Promise.all(Array.from({length: 6}, next));          // 동시 6개
+  btn.disabled = false; btn.textContent = old;
+  showMapNotice(failed
+    ? `미리받기 완료 — ${done - failed}장 저장, ${failed}장 실패(네트워크·한도 확인)`
+    : `미리받기 완료 — 이 범위 ${done}장을 저장했습니다. 상담 중 네트워크가 끊겨도 뜹니다`);
+}
+function drawBasemapButtons(){
+  ["mainBasemaps", "basemaps"].forEach(id => {
+    const el = document.getElementById(id);
+    if(!el) return;
+    el.innerHTML = `<span class="lbl">배경</span>` + BASEMAPS.map(b => {
+      const off = b.needKey && !state.vworldKey;
+      return `<button data-b="${b.k}" aria-pressed="${b.k===state.basemap}"
+        ${off?`disabled title="VWorld 키 미설정 — scripts/make_web_config.py 로 web/config.json 생성"`:""}
+        >${b.label}${off?" 🔒":""}</button>`;
+    }).join("") + (state.vworldKey
+      ? `<button data-prefetch="1" title="지금 보이는 범위의 위성 타일을 미리 받아 둡니다 · 상담장 네트워크가 느릴 때">미리받기</button>`
+      : "");
+    el.querySelectorAll("button[data-b]").forEach(btn => btn.onclick = () => {
+      state.basemap = btn.dataset.b;
+      drawBasemapButtons();
+      applyMainBasemap();
+      applyBasemap();
+    });
+    const pf = el.querySelector("button[data-prefetch]");
+    // mainBasemaps 는 전국 지도(map), basemaps 는 동 상세 지도(map2) 를 가리킨다
+    if(pf) pf.onclick = () => prefetchSatellite(id === "mainBasemaps" ? map : (map2 || map), pf);
+  });
+}
+
+/* ⚠️ 자사·경쟁사 마커는 **반드시 맨 위로 올린다.**
+   학원 마커가 동당 수백 개라(다산1동 556개) 그냥 두면 경쟁사 2개가 통째로 묻혀
+   "경쟁사 없는 동"처럼 보인다 — 상담 자리에서 최악의 오독이다.
+   뒤에 올린 것이 위로 오므로 영유 → 경쟁사 → 자사 순서로 끌어올린다.
+   레이어를 껐다 켜면 순서가 풀리므로 토글에서도 다시 부른다. */
+function raiseKeyLayers(){
+  ["english_kinder","competitor","own_wiseman","own_waikids"].forEach(k => {
+    const g = poiLayers[k];
+    if(g && map2.hasLayer(g)) g.eachLayer(l => { try{ l.bringToFront(); }catch(e){} });
+  });
+}
+
+/* 좌표가 **완전히 같은** POI 를 아주 조금 흩뿌린다.
+   ⚠️ 슬롯은 **레이어를 가로질러** 매긴다 — 초·중·고는 레이어가 따로라 레이어별로 매기면
+   모담초(88명)+모담중(475명)처럼 (초 1개, 중 1개)가 각각 「혼자」로 보여 원이 포개진다.
+   첫 번째는 **제자리에 둔다** — 대표 위치를 지킨다. 오프셋은 약 9m 로, 상담에서 짚는 위치를 해치지 않는다. */
+const SPREAD_STEPS = [[0,0],[0,1],[0,-1],[1,0],[-1,0],[1,1],[-1,-1],[1,-1],[-1,1]];
+                                   // 세로(위도) 먼저 — 같은 도수에서 경도 간격이 cos(위도)만큼
+                                   // 짧아 가로로 밀면 원이 덜 떨어진다
+const SPREAD_DEG = 0.00035;        // 위도 약 39m · 경도 약 31m — 학교 부지 안쪽 수준이라
+                                   // 상담에서 짚는 위치를 해치지 않는다. 9m 로는 줌 16 에서 약 5px 라
+                                   // 18px 원이 그대로 겹쳤다(모담초·모담중 실측).
+function spreadCoincidentRows(rows, slots){
+  const own = slots || new Map();
+  return rows.map(r=>{
+    const key=`${Number(r.lat).toFixed(6)},${Number(r.lng).toFixed(6)}`;
+    const i=own.get(key)||0; own.set(key,i+1);
+    if(!i) return r;
+    const [dx,dy]=SPREAD_STEPS[i%SPREAD_STEPS.length];
+    return {...r,_displayLat:Number(r.lat)+dy*SPREAD_DEG,
+                 _displayLng:Number(r.lng)+dx*SPREAD_DEG};
+  });
+}
+
+/* 학교 원 밑 숫자가 서로 겹치면 **숫자를 숨긴다** (2026-09-18).
+   ⚠️ **마커를 옮겨 쌓지 않는다.** 1차 구현이 원과 숫자를 아래로 밀었는데,
+   줌 13 논현고잔동에서 사리울초가 136px(약 2km) 밀려 **행정동 경계 밖에 찍혔다** —
+   상담에서 학교 위치를 잘못 짚게 된다. 마커 위치가 숫자 가독성보다 먼저다.
+   좌표가 **완전히 같은** 경우는 spreadCoincidentRows 가 약 9m 흩뿌려 원이 포개지지 않게 한다.
+   숨은 숫자는 확대하면(겹침이 풀리면) 다시 나타나고, 말풍선으로는 언제든 볼 수 있다.
+   ponytail: 화면에 그려진 것끼리 O(n^2) 비교 — 한 동에 보이는 학교는 수십 개라 충분하다. */
+function restackSchoolNums(){
+  if(!map2) return;
+  const items=[], dots=[];
+  for(const kind of ["school_elem","school_mid","school_high"]){
+    const layer=poiLayers[kind];
+    if(!layer || !map2.hasLayer(layer)) continue;
+    for(const m of layer.getLayers()){
+      const el=m.getElement && m.getElement();
+      const dot=el && el.querySelector(".poi-school");
+      if(!dot) continue;
+      const q=map2.latLngToContainerPoint(m.getLatLng());
+      dots.push({x:q.x, y:q.y, w:18, h:18});          // 원은 중심에서 ±9
+      const num=el.querySelector(".poi-school-num");
+      if(!num) continue;
+      num.style.display="";                          // 매번 전부 되살린 뒤 다시 판정한다
+      items.push({num, x:q.x, y:q.y+16, w:num.getBoundingClientRect().width||28, h:12, mine:q,
+                  val:Number(String(num.textContent).replace(/[^0-9]/g,"")) || 0});
+    }
+  }
+  const hit=(a,b)=>Math.abs(a.x-b.x) < (a.w+b.w)/2+1 && Math.abs(a.y-b.y) < (a.h+b.h)/2+1;
+  /* 남길 우선순위 = **학생수가 큰 학교**. 전에는 북→남이라 지리적 위치가 우선순위를 정했다.
+     ⚠️ 이걸 바꿔도 **진입 배율에서 큰 학교가 숨는 것은 그대로다**(2026-09-18 실측 — 물금읍
+     가양초 1,481명이 줌 13·14·15 에서 계속 숨었다). 큰 학교가 숨는 주된 이유는 숫자끼리 겹침이
+     아니라 **이웃 학교 원에 가리는 것**이라 정렬로는 안 풀린다. 배율을 올리면 해소된다
+     (물금읍 58%→0% @줌16 · 범어4동 67%→0% @줌15).
+     그래도 이 정렬을 두는 이유 — 숫자끼리 겹칠 때만큼은 **의미 있는 쪽(큰 학교)이 남는다.** */
+  items.sort((a,b)=>b.val-a.val || a.y-b.y || a.x-b.x);
+  const kept=[];
+  for(const it of items){
+    /* 숨기는 기준은 둘이다 — ①다른 숫자와 겹친다 ②**다른 학교의 원**에 가린다.
+       ②를 빼면 모담초·모담중처럼 붙은 자리에서 숫자가 옆 원 뒤로 들어가 반쯤 보인다. */
+    const clash = kept.some(o=>hit(o,it))
+               || dots.some(d=>Math.abs(d.x-it.mine.x)+Math.abs(d.y-it.mine.y) > 0.5 && hit(d,it));
+    if(clash) it.num.style.display="none";
+    else kept.push(it);
+  }
+}
+
+
+async function viewSelectedAdmsPoi(admCodes){
+  admViewToken++;
+  const token=++poiSelectionToken;
+  const codes=[...new Set(admCodes.map(String))];
+  const sggCodes=[...new Set(codes.map(code=>code.slice(0,5)))];
+  const loaded=await Promise.all(sggCodes.map(async code=>({
+    poi:await load("proc",`poi_${code}.json`),
+    geo:await load("geo",`adm_${code}.geojson`)
+  })));
+  if(token!==poiSelectionToken) return;
+  const combined={};
+  [...new Set(Object.keys(POI_STYLE).map(k=>POI_STYLE[k].source||k))]
+    .forEach(source=>combined[source]=[]);
+  loaded.forEach(item=>{
+    if(!item.poi) return;
+    Object.keys(combined).forEach(source=>{
+      if(Array.isArray(item.poi[source])) combined[source].push(...item.poi[source]);
+    });
+  });
+  const geo={type:"FeatureCollection",features:loaded.filter(x=>x.geo)
+    .flatMap(x=>x.geo.features||[])};
+  drawPoi(combined,codes,geo);
+}
+
+/* 브랜드명 이름표로 그리는 레이어 (관리자 결정 2026-09-17: 경쟁사·자사만, 시너지세권은 점 유지) */
+const POI_LABEL_KINDS = new Set(["own_waikids","own_wiseman","competitor"]);
+/* 같은 건물(좌표 동일)의 이름표는 겹치지 않게 **세로로 쌓는다.** 자사 → 경쟁사 순으로 아래부터.
+   ⚠️ 레이어를 가로질러 슬롯을 매긴다 — 레이어별로 매기면 자사와 경쟁사가 같은 건물일 때 겹친다.
+   좌표는 소수 5자리(약 1m)로 묶는다. 같은 건물은 지오코딩이 같은 점을 준다(송도 신송로 170 실측). */
+function stackLabelRows(rows,slots){
+  return rows.map(r=>{
+    const k=`${Number(r.lat).toFixed(5)},${Number(r.lng).toFixed(5)}`;
+    const slot=slots.get(k)||0; slots.set(k,slot+1);
+    return {...r,_slot:slot};
+  });
+}
+const esc = v => String(v??"").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const gradeSum = r => (Array.isArray(r.grades)?r.grades:[]).reduce((a,b)=>a+Number(b||0),0);
+function schoolTipHtml(r){
+  const g=Array.isArray(r.grades)?r.grades:[];
+  const c=Array.isArray(r.grade_classes)?r.grade_classes:[];
+  return `<b>${esc(r.name)}</b>`+g.map((n,i)=>`<br>${i+1}학년 ${fmt(n)}명`+
+    (c[i]!==undefined?` (${fmt(c[i])}학급)`:"")).join("");
+}
+function cachedPoiMarker(kind,st,r){
+  const lat=r._displayLat??r.lat, lng=r._displayLng??r.lng;
+  const key=[kind,r.adm_cd||"",lat,lng,r.name||"",r.brand||"",r.addr||"",r._slot??""].join("|");
+  if(poiMarkerCache.has(key)) return poiMarkerCache.get(key);
+  if(poiMarkerCache.size>25000) poiMarkerCache.clear();
+  if(st.source==="school"){
+    const marker=L.marker([lat,lng],{
+      icon:L.divIcon({className:"poi-school-icon",iconSize:[0,0],iconAnchor:[0,0],
+        html:`<div class="poi-school" style="background:${st.color}">${esc(st.type)}</div>`+
+             (gradeSum(r)?`<div class="poi-school-num" style="color:${st.color}">${fmt(gradeSum(r))}</div>`:"")}),
+      keyboard:false
+    }).bindTooltip(schoolTipHtml(r),{direction:"top",offset:[0,-10],className:"poi-school-tip"});
+    poiMarkerCache.set(key,marker);
+    return marker;
+  }
+  const marker=(POI_LABEL_KINDS.has(kind)
+    ? L.marker([lat,lng],{
+        icon:L.divIcon({className:"poi-label-icon",iconSize:[0,0],iconAnchor:[0,0],
+          html:`<span class="poi-label-pin" style="background:${st.color}"></span>`+
+               `<div class="poi-label" style="--slot:${r._slot||0};${kind==="competitor"?"":`border-color:${st.color};`}">`+
+               `<span class="sw" style="background:${st.color}"></span>${esc(r.brand||st.label)}</div>`}),
+        keyboard:false,
+        /* 자사가 경쟁사보다, 둘 다 학교 아이콘보다 위 (학원·아파트 점은 아래 오버레이 층이라 자동으로 아래) */
+        zIndexOffset:kind==="competitor"?500:1000
+      })
+    : L.circleMarker([lat,lng],{
+        radius:POI_MARKER_RADIUS,stroke:true,color:"#111827",
+        weight:1.5,opacity:1,fillColor:st.color,fillOpacity:1
+      })
+  ).bindPopup(
+    `<b style="font-size:15px">${r.name||"(무명)"}</b><br>`+
+    (r.brand?`<b style="color:${st.color}">${r.brand}</b> · ${st.label}`:st.label)+
+    (r.type&&!st.type?` · ${r.type}`:"")+(r.course?` · ${r.course}`:"")+
+    (r.addr?`<br><span style="color:#666">${r.addr}</span>`:"")+
+    (r.first_seen?`<br><span style="color:#666">최초 확인 ${r.first_seen}</span>`:"")+
+    (r.students?`<br>재학생 ${fmt(r.students)}명`:"")+
+    (r.households?`<br>${fmt(r.households)}세대${r.built?` · ${r.built}년 준공`:""}`:"")
+  );
+  poiMarkerCache.set(key,marker);
+  return marker;
+}
+
+function drawPoi(poi, admCode, admGeoOverride=null){
+  const admCodes=(Array.isArray(admCode)?admCode:[admCode]).filter(Boolean).map(String);
+  const admSet=new Set(admCodes);
+  if(!map2){
+    map2 = L.map("map2", {attributionControl:true, scrollWheelZoom:true})
+            .setView([37.5,127.03], 14);
+    map2.zoomControl.setPosition("bottomright");
+    map2.attributionControl.setPrefix("");   // 위성 타일은 출처 표기가 이용조건이다
+    applyBasemap();
+    /* 배율이 바뀌면 화면상 거리가 달라져 겹침도 달라진다 */
+    map2.on("zoomend moveend", restackSchoolNums);
+  }
+  drawBasemapButtons();
+  Object.values(poiLayers).forEach(l => map2.removeLayer(l));
+  poiLayers = {};
+
+  const hint = document.getElementById("poiHint");
+  if(!poi){
+    document.getElementById("toggles").innerHTML = "";
+    hint.textContent = "선택 지역의 POI 파일이 없습니다";
+    return;
+  }
+  hint.textContent = admCodes.length>1
+    ? `선택한 ${admCodes.length}개 행정동의 POI 합산 · 레이어 버튼으로 켜고 끌 수 있습니다`
+    : "레이어 버튼으로 켜고 끌 수 있습니다 · 마커 클릭 시 상세 표시 · 버튼의 숫자는 이 동에 위치한 실제 POI 개수";
+
+  // 경계 표시 (선택한 모든 동을 강조)
+  const admGeo = admGeoOverride || (state.sgg && cache.get("geo/adm_"+state.sgg.code+".geojson"));
+  if(admGeo){
+    // 상세 지도의 동에도 코로플레스와 **같은 말풍선**을 붙인다. 여기서 옆 동을
+    // 훑어보는 일이 실제 상담 동선이라, 클릭해서 들어가 보지 않고도 비교돼야 한다.
+    const admMet = state.selectionContext && state.selectionContext.data
+      ? state.selectionContext.data.met : null;
+    const admStyle = f => ({
+      color:"#ffffff",opacity:1,
+      weight: admSet.has(String(f.properties.code)) ? 4 : 2,
+      fill:true, fillColor:"#cde2fb",
+      fillOpacity:admSet.has(String(f.properties.code)) ? .25 : .01,
+      className:"region-boundary"
+    });
+    const bl = L.geoJSON(admGeo, {
+      style:admStyle,
+      onEachFeature:(f,lyr)=>{
+      const met = admMet && admMet.data ? admMet.data[String(f.properties.code)] : null;
+      lyr.bindTooltip(regionTipHtml(f.properties.name, met), {sticky:true, direction:"top"});
+      // 🚫 hover 로 **weight 를 바꾸지 말 것.** 이 지도에서 선/굵기는 "선택됨"을
+      //    나타내는 축이라(선택 4 · 비선택 2), hover 가 건드리면 마우스가 올라가
+      //    있다는 이유만으로 선택된 것처럼 보이고 선택 개수를 세는 쪽도 틀린다.
+      //    강조는 **채움 진하기로만** 한다.
+      lyr.on("mouseover", () => lyr.setStyle({fillOpacity: admSet.has(String(f.properties.code)) ? .40 : .28}));
+      lyr.on("mouseout",  () => lyr.setStyle(admStyle(f)));
+      lyr.on("click",e=>{
+        const original=e.originalEvent||{};
+        if(original.preventDefault) original.preventDefault();
+        if(original.stopPropagation) original.stopPropagation();
+        if(original.ctrlKey||original.metaKey||mapMultiPick){
+          toggleMapRegionSelection(f.properties.code);
+          return;
+        }
+        const code=String(f.properties.code);
+        const ctx=state.selectionContext;
+        const row=ctx&&ctx.rows.find(r=>String(r.code)===code);
+        if(!row) return;
+        viewAdm({code,name:row.name});
+      });
+      }
+    });
+    poiLayers.__adm = bl.addTo(map2);
+    const selectedFeatures=admGeo.features.filter(f=>admSet.has(String(f.properties.code)));
+    if(selectedFeatures.length) map2.fitBounds(L.geoJSON({type:"FeatureCollection",features:selectedFeatures}).getBounds(),
+      {padding:[28,28],maxZoom:14,animate:false});
+  }
+
+  const counts = {}, used = {};
+  const labelSlots = new Map();
+  const coincidentSlots=new Map();   // 좌표 동일 흩뿌림 — 학교 초·중·고를 가로질러 공유한다
+  let unmatched = false;
+  Object.keys(POI_STYLE).forEach(kind => {
+    const st = POI_STYLE[kind];
+    let all = (poi[st.source||kind] || []).filter(r=>(!st.brand || r.brand===st.brand) &&
+      (!st.type || r.type===st.type));
+    if(POI_BRAND_FILTERS[kind]){
+      const selected=state.selectedPoiBrands[kind]||new Set();
+      all=all.filter(r=>selected.has(r.brand));
+    }
+    let rows = all.filter(r => !r.adm_cd || admSet.has(String(r.adm_cd)));
+    // 행정동 매칭(adm_cd)이 **아예 없는** 데이터일 때만 시군구 전체로 폴백한다.
+    // ⚠️ B-8: adm_cd 가 붙어 있는데도 폴백하면, 학교가 정말 0개인 동에서
+    //    시군구 전체 수치를 "동 내"로 표시하게 된다(전국 142개 동이 해당).
+    //    "0개"는 결측이 아니라 실측값이므로 0으로 둔다.
+    const hasAdm = all.some(r => r.adm_cd);
+    if(rows.length === 0 && all.length > 0 && !hasAdm){ rows = all; unmatched = true; }
+    rows=POI_LABEL_KINDS.has(kind)?stackLabelRows(rows,labelSlots):spreadCoincidentRows(rows,coincidentSlots);
+    counts[kind] = rows.length; used[kind] = rows;
+    const g=L.layerGroup(rows.map(r=>cachedPoiMarker(kind,st,r)));
+    poiLayers[kind] = g.addTo(map2);
+  });
+  // ⚠️ 자사·경쟁사 마커는 **반드시 맨 위로 올린다.**
+  //    학원 마커가 동당 수백 개라(예: 다산1동 556개) 그냥 두면 경쟁사 2개가
+  //    통째로 묻혀 "경쟁사 없는 동"처럼 보인다. 상담 자리에서 최악의 오독이다.
+  //    뒤에 올린 것이 위로 오므로 영유 → 경쟁사 → 자사 순서로 끌어올린다.
+  restyleMarkers();
+  raiseKeyLayers();
+  requestAnimationFrame(restackSchoolNums);   // 마커가 DOM 에 붙은 뒤에야 폭을 잰다
+
+  if(unmatched){
+    hint.textContent = "일부 POI에 행정동 매칭 정보가 없어 시군구 전체 POI를 표시합니다"
+                     + " (경계 파일이 들어오면 동 단위로 좁혀집니다)";
+  }
+  const primaryFilterKeys=["competitor","school_elem","school_mid","school_high","english_kinder"];
+  const secondaryFilterKeys=Object.keys(POI_STYLE).filter(k=>!primaryFilterKeys.includes(k));
+  const filterChip=k=>`<label class="poi-filter-chip" data-filter-key="${k}">
+    <input type="checkbox" data-k="${k}" checked aria-label="${POI_STYLE[k].label} 지도 표시">
+    <span class="dot" style="background:${POI_STYLE[k].color}"></span>
+    <span>${POI_STYLE[k].label}</span> <span class="cnt">${counts[k]}</span></label>`;
+  document.getElementById("toggles").innerHTML =
+    `<div class="toggle-group primary" aria-label="요청 지도 필터"><span class="toggle-group-label">지도 필터</span>${primaryFilterKeys.map(filterChip).join("")}</div>`+
+    `<div class="toggle-group secondary" aria-label="기타 지도 표시"><span class="toggle-group-label">기타 표시</span>${secondaryFilterKeys.map(filterChip).join("")}</div>`;
+  document.querySelectorAll("#toggles input[data-k]").forEach(input => input.onchange = () => {
+    const k=input.dataset.k;
+    input.closest(".poi-filter-chip").classList.toggle("off",!input.checked);
+    if(input.checked){ poiLayers[k].addTo(map2); raiseKeyLayers(); }
+    else map2.removeLayer(poiLayers[k]);
+    requestAnimationFrame(restackSchoolNums);
+  });
+
+  // ④ 접근성 KPI 채우기
+  const set = (id,v)=>{ const e=document.getElementById(id); if(e) e.innerHTML=v; };
+  const schoolKinds=["school_elem","school_mid","school_high"];
+  const sc=schoolKinds.flatMap(k=>used[k]||[]);
+  const schoolCount=schoolKinds.reduce((sum,k)=>sum+(counts[k]||0),0);
+  set("kSchool", `${schoolCount}<span class="u">개</span>`);
+  set("kApt",    `${counts.apartment}<span class="u">개 단지</span>`);
+  set("kStu",    `${fmt(sc.reduce((s,r)=>s+(r.students||0),0))}<span class="u">명</span>`);
+  poiRenderVersion++;
+  setTimeout(()=>map2.invalidateSize(), 60);
+}
+
+/* =====================================================================
+   7. 시작
+   ===================================================================== */
+// 창 크기가 바뀌면 Leaflet 이 리사이즈를 못 따라가 회색으로 비는 문제 방지
+// (인쇄 대응 리스너 beforeprint · matchMedia("print") 는 2026-08-05 인쇄 폐지로 삭제)
+function refreshMaps(){
+  try{ if(map) map.invalidateSize({pan:false}); }catch(e){}
+  try{ if(map2) map2.invalidateSize({pan:false}); }catch(e){}
+}
+window.addEventListener("resize", refreshMaps);
+
+async function redrawForAgeFilter(){
+  METRICS[0].label=`학령인구(${ageRangeLabel()})`;
+  document.getElementById("ageStatus").textContent=`한국나이 · ${selectedAgeList().length}개 연령`;
+  const selected=[...state.selectedCodes];
+  const ctx=state.selectionContext;
+  if(state.level==="adm" && state.adm) await viewAdm(state.adm);
+  else if(ctx && ctx.level==="adm" && state.sggs.length) await viewSggSelection(state.sggs,selected);
+  else if(ctx && ctx.level==="sgg" && state.sidos.length) await viewSidoSelection(state.sidos,selected);
+  else await viewNation(ctx&&ctx.level==="sido"?selected:[]);
+}
+function setAgeFilterOpen(open){
+  const panel=document.getElementById("ageFilterPanel");
+  const trigger=document.getElementById("ageFilterTrigger");
+  if(!panel||!trigger) return;
+  panel.classList.toggle("hidden",!open);
+  trigger.setAttribute("aria-expanded",String(open));
+}
+function syncAgeFilterUI(){
+  const checks=document.getElementById("ageChecks");
+  const trigger=document.getElementById("ageFilterTrigger");
+  const ages=selectedAgeList();
+  state.ageMin=ages.length?ages[0]:null;
+  state.ageMax=ages.length?ages[ages.length-1]:null;
+  checks.querySelectorAll("input").forEach(input=>input.checked=state.selectedAges.has(Number(input.value)));
+  trigger.textContent=`${ageRangeLabel()} v`;
+  document.getElementById("ageStatus").textContent=`한국나이 · ${ages.length}개 연령`;
+  document.querySelectorAll("[data-age-preset]").forEach(b=>{
+    const [lo,hi]=b.dataset.agePreset.split("-").map(Number);
+    const preset=Array.from({length:hi-lo+1},(_,i)=>lo+i);
+    b.setAttribute("aria-pressed",String(ages.length===preset.length&&preset.every(a=>state.selectedAges.has(a))));
+  });
+}
+function initAgeFilter(){
+  const checks=document.getElementById("ageChecks");
+  const trigger=document.getElementById("ageFilterTrigger");
+  checks.innerHTML=Array.from({length:KOR_AGE_MAX-KOR_AGE_MIN+1},(_,i)=>i+KOR_AGE_MIN).map(age=>
+    `<label><input type="checkbox" value="${age}"${age<=16?" checked":""}>${age}세</label>`).join("");
+  let redrawTimer=0;
+  const scheduleRedraw=()=>{
+    clearTimeout(redrawTimer);
+    redrawTimer=setTimeout(()=>redrawForAgeFilter(),100);
+  };
+  trigger.onclick=e=>{
+    e.stopPropagation();
+    const open=document.getElementById("ageFilterPanel").classList.contains("hidden");
+    setRankFilterOpen(false); setPoiBrandFilterOpen(null,false); setAgeFilterOpen(open);
+  };
+  document.getElementById("ageFilterClear").onclick=e=>{
+    e.stopPropagation();
+    state.selectedAges.clear();
+    syncAgeFilterUI(); scheduleRedraw();
+  };
+  document.querySelectorAll("[data-age-preset]").forEach(b=>b.onclick=()=>{
+    const [lo,hi]=b.dataset.agePreset.split("-").map(Number);
+    state.selectedAges=new Set(Array.from({length:hi-lo+1},(_,i)=>lo+i));
+    syncAgeFilterUI(); scheduleRedraw();
+  });
+  checks.querySelectorAll("input").forEach(input=>input.onchange=()=>{
+    const age=Number(input.value);
+    if(input.checked) state.selectedAges.add(age); else state.selectedAges.delete(age);
+    syncAgeFilterUI(); scheduleRedraw();
+  });
+  syncAgeFilterUI();
+}
+
+let dashboardResetBusy=false;
+async function resetDashboardInitialState(){
+  if(dashboardResetBusy) return;
+  dashboardResetBusy=true;
+  document.querySelectorAll("[data-dashboard-reset]").forEach(button=>button.disabled=true);
+  try{
+    clearTimeout(poiBrandRedrawTimer);
+    state.selectedAges=new Set(Array.from({length:14},(_,i)=>i+3));
+    state.selectedPoiBrands=Object.fromEntries(Object.entries(POI_BRAND_FILTERS)
+      .map(([category,brands])=>[category,new Set(brands)]));
+    state.selectedCodes.clear();
+    state.selectionContext=null;
+    state.basemap="plain";
+    curMetric=METRICS[0];
+    METRICS[0].label="학령인구(3~16세)";
+    setRankFilterOpen(false);
+    setAgeFilterOpen(false);
+    setPoiBrandFilterOpen(null,false);
+    syncAgeFilterUI();
+    Object.keys(POI_BRAND_FILTERS).forEach(syncPoiBrandFilterUI);
+    try{ if(map) map.closePopup(); }catch(e){}
+    try{ if(map2) map2.closePopup(); }catch(e){}
+    applyMainBasemap();
+    applyBasemap();
+    drawBasemapButtons();
+    await viewNation();
+  }finally{
+    dashboardResetBusy=false;
+    document.querySelectorAll("[data-dashboard-reset]").forEach(button=>button.disabled=false);
+  }
+}
+
+(async function main(){
+  initAgeFilter();
+  initPoiBrandFilters();
+  document.querySelectorAll("[data-dashboard-reset]").forEach(button=>{
+    button.onclick=e=>{ e.stopPropagation(); resetDashboardInitialState(); };
+  });
+  document.getElementById("foot").textContent =
+    "지역분석 대시보드 · 정적 HTML + Leaflet(local) · " + new Date().toLocaleDateString("ko-KR");
+  if(location.protocol === "file:"){
+    showNotice("로컬 파일로 직접 열었습니다",
+      `브라우저 보안(CORS) 때문에 <code>file://</code> 에서는 데이터 로딩이 막힐 수 있습니다.<br>
+       <b>web\\serve.bat</b> 을 실행한 뒤 <code>http://localhost:8765/</code> 로 접속하세요.`);
+  }
+  /* VWorld 키 (선택) — `web/config.json` 이 있으면 위성(VWorld) 버튼이 켜진다.
+     ⚠️ 이 파일은 키를 담으므로 공유·업로드 대상이 아니다. 없으면 그냥 잠긴 버튼으로 보인다. */
+  try{
+    const cfg = await tryFetch("config.json");
+    if(cfg && cfg.vworldKey) state.vworldKey = cfg.vworldKey;
+  }catch(e){}
+  /* 제거된 베이스맵 선택값이 남았거나 VWorld 키가 없으면 일반으로 되돌린다. */
+  if(!BASEMAPS.some(b => b.k === state.basemap)) state.basemap = "plain";
+  if(currentBase().needKey && !state.vworldKey) state.basemap = "plain";
+
+  await viewNation();
+  if(state.missing.length && !state.usedMock){
+    showNotice("데이터 준비중", "다음 파일을 찾지 못했습니다: <code>" +
+      [...new Set(state.missing)].join("</code>, <code>") + "</code>");
+  }
+})();
+
+/* 지표 설명 말풍선.
+   카드는 회차마다 innerHTML 로 다시 그려지므로 **위임**으로 붙인다 —
+   카드마다 리스너를 달면 다시 그릴 때 조용히 사라진다. */
+(function initKpiTip(){
+  const tip = document.createElement("div");
+  tip.id = "kpiTip";
+  document.body.appendChild(tip);
+  let cur = null;
+
+  function place(e){
+    const pad = 12, w = tip.offsetWidth, h = tip.offsetHeight;
+    // 커서 오른쪽 아래가 기본. 화면 밖으로 나가면 반대편으로 접는다.
+    let x = e.clientX + pad, y = e.clientY + pad;
+    if(x + w > innerWidth  - 8) x = e.clientX - w - pad;
+    if(y + h > innerHeight - 8) y = e.clientY - h - pad;
+    tip.style.left = Math.max(8, x) + "px";
+    tip.style.top  = Math.max(8, y) + "px";
+  }
+  document.addEventListener("mouseover", e => {
+    const el = e.target.closest ? e.target.closest("[data-tip]") : null;
+    if(!el || el === cur) return;
+    cur = el;
+    tip.innerHTML = el.getAttribute("data-tip");
+    tip.classList.add("on");
+    place(e);
+  });
+  document.addEventListener("mousemove", e => { if(cur) place(e); });
+  document.addEventListener("mouseout", e => {
+    if(!cur) return;
+    const to = e.relatedTarget;
+    if(to && to.closest && to.closest("[data-tip]") === cur) return;
+    cur = null;
+    tip.classList.remove("on");
+  });
+  // 스크롤·드릴다운으로 카드가 사라져도 말풍선이 남지 않게 한다.
+  addEventListener("scroll", () => { cur = null; tip.classList.remove("on"); }, true);
+})();
+</script>
+</body>
+</html>
