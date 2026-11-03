@@ -28,6 +28,7 @@
 .git/
 .playwright-mcp/
 .venv/
+.wrangler/
 __pycache__/
 archive/
 backup/
@@ -45,6 +46,7 @@ profile/
 reports/
 temp/
 tmp/
+toss_session/
 venv/
 .env*
 *token*.json

@@ -65,6 +65,26 @@ def bundle(metrics, population, competitor, codes, geo=None):
     return value
 
 
+# 화면 「데이터 갱신 주기」 팝업이 읽는다 (2026-11-03). 최종 수정일 = 원천 산출물 meta.updated 중 가장 늦은 날.
+UPDATE_SOURCES = [
+    ("인구", "population.json"), ("아파트 실거래", "apartment.json"), ("아파트 세대수", "kapt.json"),
+    ("어린이집 원아", "childcare.json"), ("학원", "academy.json"), ("학교", "school.json"),
+    ("자사·경쟁사·시너지세권", "competitor_adm.json"),
+]
+
+
+def update_info():
+    items, dates = [], []
+    for name, fname in UPDATE_SOURCES:
+        meta = read(PROC / fname).get("meta", {})
+        basis = meta.get("period") or meta.get("base_ym") or (
+            f"{meta['base_year']}학년도" if meta.get("base_year") else meta.get("collected_at") or "")
+        if meta.get("updated"):
+            dates.append(meta["updated"])
+        items.append({"name": name, "basis": basis, "updated": meta.get("updated", "")})
+    return {"meta": {"schema": "web-update-info-v1"}, "updated": max(dates) if dates else "", "items": items}
+
+
 def main():
     sido_geo = simplify_geo(read(GEO / "sido.geojson"), SIDO_TOL)
     sgg_geo = simplify_geo(read(GEO / "sgg.geojson"), SGG_TOL)
@@ -103,6 +123,8 @@ def main():
         codes = sorted(code for code in metrics_adm["data"] if code.startswith(sgg_code))
         name = f"web_adm_{sgg_code}.json"
         outputs[name] = write(PROC / name, bundle(metrics_adm, population_adm, competitor_adm, codes))
+
+    outputs["web_update_info.json"] = write(PROC / "web_update_info.json", update_info())
 
     result = {
         "status": "OK",

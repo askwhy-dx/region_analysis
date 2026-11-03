@@ -5,7 +5,7 @@
  *   node scripts/verify_dashboard.js --shots D:\out
  *
  * 데이터 검증(`verify_c8.py`)이 못 잡는 것만 본다 — **화면에서 사라지는 것들**:
- *   ① mock 폴백 (배지가 '실데이터' 인가)          ⑤ 자사 2브랜드 합산·둘 다 강조
+ *   ① mock 폴백 (배지가 '데이터 갱신 주기' 인가)      ⑤ 자사 2브랜드 합산·둘 다 강조
  *   ② 지표 드롭다운 3종 · 코로플레스 채색          ⑥ 마커 z-order (학원 246개에 묻히지 않는가)
  *   ③ 전국→시도→시군구→동 드릴다운               ⑦ 토글 껐다 켠 뒤에도 z-order 유지
  *   ④ ④경쟁 환경 블록 문구 (시너지세권·대기 축)    ⑧ JS 런타임 에러
@@ -26,7 +26,7 @@ const KEEP = argv.includes("--keep");
 const SHOT = argv.includes("--shots")
   ? argv[argv.indexOf("--shots") + 1]
   : path.join(os.tmpdir(), "jiyeok_verify_shots");
-const PORT = 8765;
+const PORT = 8766;  // 8765 = 토큰 사용량 페이지(시작프로그램)가 점유
 const BASE = `http://127.0.0.1:${PORT}/web/`;
 const PY = "C:\\Users\\User\\AppData\\Local\\Programs\\Python\\Python312\\python.exe";
 
@@ -125,8 +125,22 @@ async function serve() {
     await page.locator("#rank .row",{hasText:name}).first().click();
     await sleep(wait);
   };
+  // 2026-11-03 배지 「실데이터」 → 「데이터 갱신 주기」 버튼. mock 이면 경고 문구가 뜬다.
   const badge = (await page.textContent("#srcBadge")).trim();
-  ck(badge.includes("실데이터"), "실데이터 배지 (mock 폴백 아님)", badge);
+  ck(badge === "데이터 갱신 주기", "데이터 갱신 주기 버튼 (mock 폴백 아님)", badge);
+  await page.click("#srcBadge");
+  await page.waitForFunction(()=>document.getElementById("updateLast").textContent.trim()!=="-",null,{timeout:5000}).catch(()=>{});
+  const upd = await page.evaluate(()=>({
+    open:!document.getElementById("updatePanel").classList.contains("hidden"),
+    cycles:[...document.querySelectorAll("#updatePanel table:first-of-type tbody tr")].map(r=>r.cells[1].textContent.trim()),
+    items:document.querySelectorAll("#updateItems tr td.c").length/2,
+    blank:[...document.querySelectorAll("#updateItems tr")].filter(r=>r.cells.length===3&&!r.cells[1].textContent.trim()).map(r=>r.cells[0].textContent),
+    last:document.getElementById("updateLast").textContent.trim()}));
+  ck(upd.open && upd.cycles.join("|")==="월 1회 자동|월 1회|분기 1회|연 1회", "갱신 주기 팝업 — 주기 4행", JSON.stringify(upd.cycles));
+  ck(upd.items===7 && upd.blank.length===0, "갱신 주기 팝업 — 데이터 7종 기준 표시", JSON.stringify(upd));
+  ck(/^\d{4}-\d{2}-\d{2}$/.test(upd.last), "갱신 주기 팝업 — 최종 수정일", upd.last);
+  await page.keyboard.press("Escape");
+  ck(await page.evaluate(()=>document.getElementById("updatePanel").classList.contains("hidden")), "갱신 주기 팝업 — ESC 로 닫힘");
   ck((await page.textContent("#ageFilterTrigger")).includes("3~16세"), "학령인구 기본 필터 3~16세");
   const agePresets = await page.$$eval("[data-age-preset]", bs => bs.map(b => b.textContent.trim()));
   ck(agePresets.some(x=>x.includes("와이키즈 3~7세")), "학령인구 프리셋 · 와이키즈 3~7세");

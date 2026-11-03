@@ -249,8 +249,13 @@ def check_childcare_arcode(no_net: bool) -> None:
         portal: dict[str, str] = {}
         for code, _ in sido_codes():
             portal.update(dict(sgg_codes(code)))
+    except (OSError, TimeoutError) as e:
+        # URLError·ConnectionReset 은 OSError 다 — 접속 실패를 「화면 개편」으로 읽으면 엉뚱한 데를 판다
+        # (2026-11-02 포털 간헐 reset 이 「화면 개편 의심」으로 슬랙에 나갔다)
+        fail("어린이집 코드표", f"포털 접속 실패(일시 장애 의심): {type(e).__name__} {e}"[:300])
+        return
     except Exception as e:  # noqa: BLE001
-        fail("어린이집 코드표", f"포털 코드표를 못 받았다: {type(e).__name__} — 화면 개편 의심")
+        fail("어린이집 코드표", f"포털 코드표 파싱 실패: {type(e).__name__} {e} — 화면 개편 의심"[:300])
         return
 
     if len(portal) < 200:
@@ -354,6 +359,7 @@ def tail(text: str, n: int = 3) -> str:
 #   세대수·어린이집 : 원천이 상시/월 갱신이라 이번 달 수집분이 최신
 SLACK_CHANNEL = "D0BA6SULQUU"  # 유삐 DM (사용자 지정 2026-10-12)
 NEWER: list[str] = []
+NEWER_RAW: dict[str, list] = {}   # auto_update.py 가 읽는다 (라벨 → [보유, 원천])
 
 
 def _prev_ym(today: date, n: int = 1) -> str:
@@ -395,6 +401,7 @@ def check_source_latest(today: date, no_net: bool) -> None:
          "collect_childcare.py (전량)"),
     ):
         if ours and latest and latest > ours:
+            NEWER_RAW[label] = [ours, latest]
             NEWER.append(f"• {label}: 보유 {ours} → 원천 *{latest}* ({how}) → `{batch}`")
 
 
@@ -529,6 +536,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true", help="화면 검증·발행 동기 생략")
     ap.add_argument("--no-net", action="store_true", help="네트워크 점검 전부 생략")
+    ap.add_argument("--no-slack", action="store_true",
+                    help="슬랙 안 보냄 — monthly_check.bat 이 auto_update.py 로 한 통에 합쳐 보낸다")
     ap.add_argument("--gate", action="store_true",
                     help="오늘이 이번 달 첫 평일인지만 판정 (스케줄러용, 점검은 안 함)")
     a = ap.parse_args()
@@ -586,7 +595,11 @@ def main() -> int:
     print(f"로그 — {log}")
     if NEWER:
         print("\n[원천에 새 데이터]\n" + "\n".join(NEWER))
-    if not a.no_net:
+    # auto_update.py 가 이 파일로 「데이터별 갱신/보류」를 정한다 (2026-11-03)
+    (LOG_DIR / "monthly_check_result.json").write_text(json.dumps(
+        {"date": f"{today:%Y-%m-%d}", "result": RESULT, "newer": NEWER_RAW,
+         "no_net": a.no_net, "quick": a.quick}, ensure_ascii=False, indent=1), encoding="utf-8")
+    if not a.no_net and not a.no_slack:
         post_slack(today)
 
     return 1 if fails else 0

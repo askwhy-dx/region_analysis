@@ -22,6 +22,7 @@ import argparse
 import json
 import re
 import sys
+import time
 import urllib.request
 from pathlib import Path
 
@@ -38,9 +39,17 @@ SGG_URL = "https://info.childcare.go.kr/info_html5/cera/common/areaCodeList.jsp?
 UA = {"User-Agent": "Mozilla/5.0", "Referer": SIDO_URL}
 
 
-def get(url: str) -> str:
-    with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=45) as r:
-        return r.read().decode("utf-8", "replace")
+def get(url: str, tries: int = 4) -> str:
+    # 포털이 간헐적으로 연결을 끊는다(WinError 10054, 2026-11-02·03 실측: 몰려서 오고 몇 초 뒤 정상).
+    # 재시도 없이 1회 실패를 FAIL 로 올리면 월간점검이 오경보를 내고 어린이집 갱신이 보류된다.
+    for i in range(tries):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=45) as r:
+                return r.read().decode("utf-8", "replace")
+        except OSError:
+            if i == tries - 1:
+                raise
+            time.sleep(3 * (i + 1))
 
 
 def sido_codes() -> list[tuple[str, str]]:
